@@ -6,7 +6,6 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-// Caminho para o .env na raiz do apps/web
 const envPath = path.resolve(__dirname, '../../.env');
 
 let url = '';
@@ -30,25 +29,47 @@ if (!url || !key) {
 
 const supabase = createClient(url, key);
 
-async function check() {
-    console.log('🔍 Verificando conexão com Supabase...');
+async function checkTable(tableName) {
+    const { error } = await supabase.from(tableName).select('count', { count: 'exact', head: true });
+    if (error && error.code === '42P01') {
+        return false;
+    }
+    return true;
+}
 
-    // Tenta fazer um select simples na tabela de categorias
-    const { data, error } = await supabase.from('categories').select('count', { count: 'exact', head: true });
+async function checkAll() {
+    console.log('🔍 Auditoria de Tabelas no Supabase...\n');
 
-    if (error) {
-        if (error.code === '42P01') {
-            console.log('❌ Tabela "categories" NÃO encontrada.');
-            console.log('⚠️  IMPORTANTE: Você precisa ir no Supabase > SQL Editor e rodar o script de criação das tabelas.');
-            process.exit(1);
+    const tables = [
+        'categories',
+        'transactions',
+        'budgets',
+        'goals',
+        'accounts',
+        'credit_cards',
+        'investments'
+    ];
+
+    const missing = [];
+
+    for (const table of tables) {
+        process.stdout.write(`Verificando '${table}'... `);
+        const exists = await checkTable(table);
+        if (exists) {
+            console.log('✅ OK');
         } else {
-            console.log('❌ Erro de conexão:', error.message);
-            process.exit(1);
+            console.log('❌ Ausente');
+            missing.push(table);
         }
+    }
+
+    console.log('\n-----------------------------------');
+    if (missing.length === 0) {
+        console.log('🎉 Todas as tabelas estão criadas!');
     } else {
-        console.log('✅ Conexão bem sucedida! Tabelas encontradas.');
-        process.exit(0);
+        console.log(`⚠️  Tabelas faltando: ${missing.join(', ')}`);
+        console.log('👉 Vou gerar o SQL para criar as tabelas faltantes.');
     }
 }
 
-check();
+checkAll();
