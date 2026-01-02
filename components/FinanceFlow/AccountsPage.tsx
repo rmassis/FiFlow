@@ -1,13 +1,12 @@
-
 import React from 'react';
 import { MOCK_ACCOUNTS } from '../constants.tsx';
-import { 
-  Wallet, 
-  Plus, 
-  ArrowUpRight, 
-  ArrowDownLeft, 
-  MoreHorizontal, 
-  ShieldCheck, 
+import {
+  Wallet,
+  Plus,
+  ArrowUpRight,
+  ArrowDownLeft,
+  MoreHorizontal,
+  ShieldCheck,
   Landmark,
   PiggyBank,
   Briefcase,
@@ -51,7 +50,7 @@ const AccountsPage: React.FC = () => {
             </h2>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-4">
           <div className="text-right">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Segurança</p>
@@ -75,7 +74,7 @@ const AccountsPage: React.FC = () => {
             <div className="p-8">
               <div className="flex justify-between items-start mb-8">
                 <div className="flex items-center gap-4">
-                  <div 
+                  <div
                     className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg"
                     style={{ backgroundColor: account.color }}
                   >
@@ -131,14 +130,14 @@ const AccountsPage: React.FC = () => {
             </div>
             <h3 className="text-lg font-bold text-slate-800 mb-2">Sugestão da IA ✨</h3>
             <p className="text-sm text-slate-500 leading-relaxed mb-6">
-              Identificamos que você tem R$ 12.000,00 parados na sua conta principal há mais de 20 dias. 
+              Identificamos que você tem R$ 12.000,00 parados na sua conta principal há mais de 20 dias.
               Deseja transferir para sua reserva Itaú que rende 100% do CDI?
             </p>
           </div>
           <button className="relative z-10 w-full py-3 bg-white border border-indigo-200 text-indigo-600 font-bold rounded-xl hover:bg-indigo-50 transition-all text-sm shadow-sm">
             Otimizar Saldo
           </button>
-          
+
           {/* Abstract BG */}
           <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-indigo-100/50 rounded-full blur-2xl"></div>
         </div>
