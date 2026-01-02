@@ -1,111 +1,214 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Transaction, Category, Budget, Goal } from '../types';
 import { CATEGORIES } from '../constants';
+import { supabase } from '../services/supabase';
+import { useAuth } from './AuthContext';
 
 interface FinanceContextData {
     transactions: Transaction[];
     categories: Category[];
     budgets: Budget[];
     goals: Goal[];
-    addTransaction: (transaction: Transaction) => void;
-    updateTransaction: (id: string, updated: Partial<Transaction>) => void;
-    deleteTransaction: (id: string) => void;
-    addCategory: (category: Category) => void;
-    updateBudget: (categoryId: string, planned: number) => void;
+    addTransaction: (transaction: Transaction) => Promise<void>;
+    updateTransaction: (id: string, updated: Partial<Transaction>) => Promise<void>;
+    deleteTransaction: (id: string) => Promise<void>;
+    addCategory: (category: Category) => Promise<void>;
+    updateBudget: (categoryId: string, planned: number) => Promise<void>;
+    loading: boolean;
 }
 
 const FinanceContext = createContext<FinanceContextData>({} as FinanceContextData);
 
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const { user } = useAuth();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [categories, setCategories] = useState<Category[]>([]);
     const [budgets, setBudgets] = useState<Budget[]>([]);
     const [goals, setGoals] = useState<Goal[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    // Load from LocalStorage on mount
+    // Carregar dados iniciais
     useEffect(() => {
-        const storedTransactions = localStorage.getItem('fiflow_transactions');
-        const storedCategories = localStorage.getItem('fiflow_categories');
-        const storedBudgets = localStorage.getItem('fiflow_budgets');
-        const storedGoals = localStorage.getItem('fiflow_goals');
-
-        if (storedTransactions) setTransactions(JSON.parse(storedTransactions));
-
-        // Se não houver categorias, iniciar com ZERO (pedido do usuário) ou com as padrões
-        // O usuário pediu para limpar dados de demonstração.
-        // Porem categorias são estrutura base. Vou manter as categorias base mas permitir que sejam apagadas se quiser,
-        // ou carrego as do constant se o localStorage estiver vazio mas salvo imediatamente.
-        // Melhor: Iniciar com as CATEGORIES do constant apenas se o usuário NÃO tiver limpado explicitamente.
-        // Como o pedido foi "realizar limpeza e usar dados reais", vou assumir que categorias padrão são úteis, 
-        // mas transações devem ser zero.
-
-        if (storedCategories) {
-            setCategories(JSON.parse(storedCategories));
-        } else {
-            // Carga inicial de categorias padrão
-            setCategories(CATEGORIES);
-            localStorage.setItem('fiflow_categories', JSON.stringify(CATEGORIES));
-        }
-
-        if (storedBudgets) {
-            setBudgets(JSON.parse(storedBudgets));
-        } else {
-            // Iniciar orçamentos zerados se não houver
-            // Para limpeza de dados, iniciamos sem mock de budget
+        if (!user) {
+            setTransactions([]);
+            setCategories([]);
             setBudgets([]);
+            setLoading(false);
+            return;
         }
 
-        if (storedGoals) setGoals(JSON.parse(storedGoals));
-    }, []);
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                // 1. Carregar Categorias
+                const { data: catsData, error: catsError } = await supabase
+                    .from('categories')
+                    .select('*');
 
-    // Sync to LocalStorage whenever state changes
-    useEffect(() => {
-        localStorage.setItem('fiflow_transactions', JSON.stringify(transactions));
-    }, [transactions]);
+                if (catsError) throw catsError;
 
-    useEffect(() => {
-        localStorage.setItem('fiflow_categories', JSON.stringify(categories));
-    }, [categories]);
+                // Se não tiver categorias, inserir as padrão
+                let finalCategories = catsData || [];
+                if (finalCategories.length === 0) {
+                    const defaultCategories = CATEGORIES.map(c => ({
+                        user_id: user.id,
+                        name: c.name,
+                        icon: c.icon,
+                        color: c.color
+                    }));
 
-    useEffect(() => {
-        localStorage.setItem('fiflow_budgets', JSON.stringify(budgets));
-    }, [budgets]);
+                    const { data: newCats, error: insertError } = await supabase
+                        .from('categories')
+                        .insert(defaultCategories)
+                        .select();
 
-    useEffect(() => {
-        localStorage.setItem('fiflow_goals', JSON.stringify(goals));
-    }, [goals]);
+                    if (!insertError && newCats) {
+                        finalCategories = newCats;
+                    }
+                }
+                setCategories(finalCategories);
 
+                // 2. Carregar Transações
+                const { data: transData, error: transError } = await supabase
+                    .from('transactions')
+                    .select('*')
+                    .order('date', { ascending: false });
 
-    const addTransaction = (transaction: Transaction) => {
-        setTransactions(prev => [transaction, ...prev]);
-    };
+                if (transError) throw transError;
+                setTransactions(transData || []);
 
-    const updateTransaction = (id: string, updated: Partial<Transaction>) => {
-        setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updated } : t));
-    };
+                // 3. Carregar Orçamentos
+                const { data: budgetsData, error: budgetError } = await supabase
+                    .from('budgets')
+                    .select('*');
 
-    const deleteTransaction = (id: string) => {
-        setTransactions(prev => prev.filter(t => t.id !== id));
-    };
+                if (budgetError) throw budgetError;
+                setBudgets(budgetsData || []);
 
-    const addCategory = (category: Category) => {
-        setCategories(prev => [...prev, category]);
-        // Inicializa budget zerado para nova categoria
-        setBudgets(prev => [...prev, { categoryId: category.id, planned: 0, actual: 0 }]);
-    };
-
-    const updateBudget = (categoryId: string, planned: number) => {
-        setBudgets(prev => {
-            const index = prev.findIndex(b => b.categoryId === categoryId);
-            if (index >= 0) {
-                const newBudgets = [...prev];
-                newBudgets[index] = { ...newBudgets[index], planned };
-                return newBudgets;
-            } else {
-                return [...prev, { categoryId, planned, actual: 0 }];
+            } catch (err) {
+                console.error('Erro ao carregar dados:', err);
+            } finally {
+                setLoading(false);
             }
-        });
+        };
+
+        fetchData();
+    }, [user]);
+
+    // --- CRUD Functions ---
+
+    const addTransaction = async (transaction: Transaction) => {
+        if (!user) return;
+        try {
+            // Remover ID temporário se existir
+            const { id, ...newTransaction } = transaction;
+
+            const { data, error } = await supabase
+                .from('transactions')
+                .insert([{
+                    user_id: user.id,
+                    description: newTransaction.description,
+                    amount: newTransaction.amount,
+                    type: newTransaction.type,
+                    category: newTransaction.category,
+                    date: newTransaction.date,
+                    status: newTransaction.status || 'PAID',
+                    account: newTransaction.account
+                }])
+                .select()
+                .single();
+
+            if (error) throw error;
+            if (data) {
+                setTransactions(prev => [data, ...prev]);
+            }
+        } catch (err) {
+            console.error('Erro ao adicionar transação:', err);
+        }
+    };
+
+    const updateTransaction = async (id: string, updated: Partial<Transaction>) => {
+        try {
+            const { error } = await supabase
+                .from('transactions')
+                .update(updated)
+                .eq('id', id);
+
+            if (error) throw error;
+
+            setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updated } : t));
+        } catch (err) {
+            console.error('Erro ao atualizar transação:', err);
+        }
+    };
+
+    const deleteTransaction = async (id: string) => {
+        try {
+            const { error } = await supabase
+                .from('transactions')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+
+            setTransactions(prev => prev.filter(t => t.id !== id));
+        } catch (err) {
+            console.error('Erro ao deletar transação:', err);
+        }
+    };
+
+    const addCategory = async (category: Category) => {
+        if (!user) return;
+        try {
+            const { error } = await supabase
+                .from('categories')
+                .insert([{
+                    user_id: user.id,
+                    name: category.name,
+                    icon: category.icon,
+                    color: category.color
+                }]);
+
+            if (error) throw error;
+
+            // Recarregar categorias
+            const { data } = await supabase.from('categories').select('*');
+            if (data) setCategories(data);
+
+        } catch (err) {
+            console.error('Erro ao criar categoria:', err);
+        }
+    };
+
+    const updateBudget = async (categoryId: string, planned: number) => {
+        if (!user) return;
+        try {
+            const existingBudget = budgets.find(b => b.category_id === categoryId);
+
+            if (existingBudget) {
+                const { error } = await supabase
+                    .from('budgets')
+                    .update({ planned })
+                    .eq('id', existingBudget.id);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase
+                    .from('budgets')
+                    .insert({
+                        user_id: user.id,
+                        category_id: categoryId,
+                        planned,
+                        actual: 0
+                    });
+                if (error) throw error;
+            }
+
+            const { data } = await supabase.from('budgets').select('*');
+            if (data) setBudgets(data);
+
+        } catch (err) {
+            console.error('Erro ao atualizar orçamento:', err);
+        }
     };
 
     return (
@@ -118,7 +221,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             updateTransaction,
             deleteTransaction,
             addCategory,
-            updateBudget
+            updateBudget,
+            loading
         }}>
             {children}
         </FinanceContext.Provider>
