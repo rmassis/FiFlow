@@ -136,8 +136,8 @@ const App: React.FC = () => {
         <ImportModal
           isOpen={isImportOpen}
           onClose={() => setIsImportOpen(false)}
-          onImport={(file) => {
-            console.log('Importing file:', file.name);
+          onImport={(files, accountId) => {
+            console.log('Importing files:', files.map(f => f.name), 'for Account ID:', accountId);
             setIsImportOpen(false);
           }}
         />
