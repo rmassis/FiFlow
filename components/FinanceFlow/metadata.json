@@ -1,0 +1,8 @@
+{
+  "name": "FinanceFlow Pro",
+  "description": "A high-performance personal financial management dashboard with AI-driven categorization, multi-format imports, and real-time data analysis.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
