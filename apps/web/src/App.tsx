@@ -33,6 +33,7 @@ import {
 
 import { FinanceProvider } from './contexts/FinanceContext';
 import { useFinance } from './contexts/FinanceContext';
+import { SubscriptionProvider } from './contexts/SubscriptionContext';
 
 const AppContent: React.FC<{ session: Session }> = ({ session }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -217,9 +218,11 @@ const App: React.FC = () => {
 
   console.log('Rendering FinanceProvider and AppContent');
   return (
-    <FinanceProvider>
-      <AppContent session={session} />
-    </FinanceProvider>
+    <SubscriptionProvider>
+      <FinanceProvider>
+        <AppContent session={session} />
+      </FinanceProvider>
+    </SubscriptionProvider>
   );
 }
 

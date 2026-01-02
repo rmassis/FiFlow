@@ -3,9 +3,10 @@ import React, { useState, useEffect } from 'react';
 import {
   Upload, X, FileText, Table, FileCode, Trash2, Wallet,
   ArrowLeft, CheckCircle2, AlertCircle, Loader2, Sparkles,
-  AlertTriangle, Globe, Link as LinkIcon
+  AlertTriangle, Globe, Link as LinkIcon, Lock
 } from 'lucide-react';
 import { useFinance } from '../../contexts/FinanceContext';
+import { useSubscription } from '../../contexts/SubscriptionContext';
 import { categorizeTransactions, TransactionInput } from '../../services/categorizationAgent';
 import { belvoService } from '../../services/belvoService';
 
@@ -39,6 +40,7 @@ const MOCK_RAW_TRANSACTIONS: TransactionInput[] = [
 
 const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) => {
   const { accounts, addAccount } = useFinance();
+  const { isPro, isFree } = useSubscription();
   const [tab, setTab] = useState<'files' | 'belvo'>('files');
   const [step, setStep] = useState<'upload' | 'preview'>('upload');
   const [dragActive, setDragActive] = useState(false);
@@ -184,22 +186,42 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
     try {
-      const result = await categorizeTransactions(MOCK_RAW_TRANSACTIONS);
-      const mappedPreview: PreviewTransaction[] = result.transacoes_categorizadas.map(t => ({
-        id: t.id,
-        date: t.data,
-        description: t.descricao,
-        amount: t.valor,
-        category: t.categoria_principal,
-        subcategory: t.classificacao,
-        type: t.categoria_principal.includes('RECEITAS') || t.categoria_principal.includes('Salário') ? 'INCOME' : 'EXPENSE',
-        confidence: t.confianca
-      }));
+      let mappedPreview: PreviewTransaction[] = [];
+
+      if (isFree) {
+        // Free Plan: Basic Import without AI
+        mappedPreview = MOCK_RAW_TRANSACTIONS.map(t => ({
+          id: t.id,
+          date: t.data,
+          description: t.descricao,
+          amount: t.valor,
+          category: 'A CLASSIFICAR', // Manual categorization required
+          subcategory: undefined,
+          type: 'EXPENSE',
+          confidence: 'baixa'
+        }));
+        // Simulate processing delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } else {
+        // Premium/Pro Plan: AI Categorization
+        const result = await categorizeTransactions(MOCK_RAW_TRANSACTIONS);
+        mappedPreview = result.transacoes_categorizadas.map(t => ({
+          id: t.id,
+          date: t.data,
+          description: t.descricao,
+          amount: t.valor,
+          category: t.categoria_principal,
+          subcategory: t.classificacao,
+          type: t.categoria_principal.includes('RECEITAS') || t.categoria_principal.includes('Salário') ? 'INCOME' : 'EXPENSE',
+          confidence: t.confianca
+        }));
+      }
+
       setPreviewData(mappedPreview);
       setStep('preview');
     } catch (error) {
       console.error("Falha na análise:", error);
-      alert("Houve um erro ao processar os arquivos com a IA.");
+      alert("Houve um erro ao processar os arquivos.");
     } finally {
       setIsAnalyzing(false);
     }
@@ -250,6 +272,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
             >
               <Globe size={16} />
               Open Finance
+              {!isPro && <Lock size={12} className="text-amber-500" />}
             </button>
           </div>
         )}
@@ -319,58 +342,77 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
                   <button
                     onClick={handleAnalyze}
                     disabled={files.length === 0 || !selectedAccountId || isAnalyzing}
-                    className="w-full mt-auto py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                    className={`w-full mt-auto py-3 font-bold rounded-xl disabled:opacity-50 transition-all flex items-center justify-center gap-2 ${isFree ? 'bg-slate-800 text-white hover:bg-slate-900' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
                   >
-                    {isAnalyzing ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
-                    <span>{isAnalyzing ? 'Analisando...' : 'Analisar com IA'}</span>
+                    {isAnalyzing ? <Loader2 size={18} className="animate-spin" /> : (isFree ? <FileText size={18} /> : <Sparkles size={18} />)}
+                    <span>
+                      {isAnalyzing ? 'Processando...' : (isFree ? 'Importar Arquivo (Básico)' : 'Analisar com IA')}
+                    </span>
                   </button>
                 </div>
               </div>
             ) : (
               /* Belvo Open Finance UI */
               <div className="flex flex-col items-center justify-center py-12 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
-                <div className="w-20 h-20 bg-indigo-100 rounded-[28px] flex items-center justify-center text-indigo-600 mb-6 font-bold">
-                  <Globe size={40} />
-                </div>
-                <h3 className="text-xl font-bold text-slate-800 mb-2">Conexão via Open Finance</h3>
-                <p className="text-sm text-slate-500 max-w-sm mb-8">
-                  Conecte sua conta bancária de forma segura e deixe o FiFlow importar e categorizar suas transações automaticamente.
-                </p>
-                <div className="w-full max-w-sm space-y-4">
-                  <div className="text-left">
-                    <label className="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Vincular à Conta FiFlow</label>
-                    <div className="relative">
-                      <select
-                        value={selectedAccountId}
-                        onChange={(e) => setSelectedAccountId(e.target.value)}
-                        className="w-full appearance-none bg-white border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium"
-                      >
-                        <option value="" disabled>Selecione uma conta...</option>
-                        {accounts.length === 0 && (
-                          <option value="AUTO_CREATE">✨ Criar conta automaticamente</option>
-                        )}
-                        {accounts.map(account => (
-                          <option key={account.id} value={account.id}>
-                            {account.name} ({account.bankName})
-                          </option>
-                        ))}
-                      </select>
-                      <Wallet className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                {!isPro ? (
+                  <div className="max-w-md mx-auto p-4">
+                    <div className="w-20 h-20 bg-amber-100 rounded-[28px] flex items-center justify-center text-amber-600 mb-6 font-bold mx-auto">
+                      <Lock size={40} />
                     </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Recurso Pro</h3>
+                    <p className="text-sm text-slate-500 mb-8">
+                      A sincronização automática via Open Finance é exclusiva para assinantes Pro. Conecte seus bancos automaticamente e nunca mais importe arquivos manualmente.
+                    </p>
+                    <button className="px-8 py-3 bg-slate-900 text-white font-bold rounded-2xl hover:bg-black transition-all shadow-xl">
+                      Fazer Upgrade para Pro
+                    </button>
                   </div>
-                  <button
-                    onClick={handleOpenBelvo}
-                    disabled={!selectedAccountId || isBelvoLoading}
-                    className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-black transition-all shadow-xl flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {isBelvoLoading ? <Loader2 size={20} className="animate-spin" /> : <LinkIcon size={20} />}
-                    <span>{isBelvoLoading ? 'Iniciando...' : 'Conectar Nova Instituição'}</span>
-                  </button>
-                </div>
-                <p className="text-[10px] text-slate-400 mt-6 flex items-center gap-1">
-                  <CheckCircle2 size={12} className="text-emerald-500" />
-                  Conexão criptografada via protocolo Belvo Open Finance
-                </p>
+                ) : (
+                  <>
+                    <div className="w-20 h-20 bg-indigo-100 rounded-[28px] flex items-center justify-center text-indigo-600 mb-6 font-bold">
+                      <Globe size={40} />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Conexão via Open Finance</h3>
+                    <p className="text-sm text-slate-500 max-w-sm mb-8">
+                      Conecte sua conta bancária de forma segura e deixe o FiFlow importar e categorizar suas transações automaticamente.
+                    </p>
+                    <div className="w-full max-w-sm space-y-4">
+                      <div className="text-left">
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Vincular à Conta FiFlow</label>
+                        <div className="relative">
+                          <select
+                            value={selectedAccountId}
+                            onChange={(e) => setSelectedAccountId(e.target.value)}
+                            className="w-full appearance-none bg-white border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium"
+                          >
+                            <option value="" disabled>Selecione uma conta...</option>
+                            {accounts.length === 0 && (
+                              <option value="AUTO_CREATE">✨ Criar conta automaticamente</option>
+                            )}
+                            {accounts.map(account => (
+                              <option key={account.id} value={account.id}>
+                                {account.name} ({account.bankName})
+                              </option>
+                            ))}
+                          </select>
+                          <Wallet className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleOpenBelvo}
+                        disabled={!selectedAccountId || isBelvoLoading}
+                        className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-black transition-all shadow-xl flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {isBelvoLoading ? <Loader2 size={20} className="animate-spin" /> : <LinkIcon size={20} />}
+                        <span>{isBelvoLoading ? 'Iniciando...' : 'Conectar Nova Instituição'}</span>
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-6 flex items-center gap-1">
+                      <CheckCircle2 size={12} className="text-emerald-500" />
+                      Conexão criptografada via protocolo Belvo Open Finance
+                    </p>
+                  </>
+                )}
               </div>
             )
           ) : (

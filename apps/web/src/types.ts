@@ -75,3 +75,13 @@ export interface ChatMessage {
   text: string;
   timestamp: Date;
 }
+
+export type UserPlan = 'FREE' | 'PREMIUM' | 'PRO';
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  full_name?: string;
+  avatar_url?: string;
+  plan: UserPlan;
+}

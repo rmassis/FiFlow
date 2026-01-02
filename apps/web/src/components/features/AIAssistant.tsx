@@ -3,11 +3,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, X, Sparkles, MessageCircle } from 'lucide-react';
 import { getFinancialAdvice } from '../../services/geminiService';
 import { useFinance } from '../../contexts/FinanceContext';
+import { useSubscription } from '../../contexts/SubscriptionContext';
 import { ChatMessage } from '../../types';
 
 
 const AIAssistant: React.FC = () => {
   const { transactions, budgets, goals } = useFinance();
+  const { isFree } = useSubscription();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: 'model', text: 'Olá! Sou seu assistente FinanceFlow Pro. Como posso ajudar com suas finanças hoje?', timestamp: new Date() }
@@ -72,49 +74,68 @@ const AIAssistant: React.FC = () => {
             </button>
           </div>
 
-          <div ref={scrollRef} className="flex-1 p-6 overflow-y-auto space-y-4 no-scrollbar">
-            {messages.map((m, i) => (
-              <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] p-4 rounded-2xl text-sm ${m.role === 'user'
-                  ? 'bg-indigo-600 text-white rounded-tr-none'
-                  : 'bg-slate-100 text-slate-700 rounded-tl-none'
-                  }`}>
-                  {m.text}
-                </div>
+          {!isFree ? (
+            <>
+              <div ref={scrollRef} className="flex-1 p-6 overflow-y-auto space-y-4 no-scrollbar">
+                {messages.map((m, i) => (
+                  <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[85%] p-4 rounded-2xl text-sm ${m.role === 'user'
+                      ? 'bg-indigo-600 text-white rounded-tr-none'
+                      : 'bg-slate-100 text-slate-700 rounded-tl-none'
+                      }`}>
+                      {m.text}
+                    </div>
+                  </div>
+                ))}
+                {isLoading && (
+                  <div className="flex justify-start">
+                    <div className="bg-slate-100 p-4 rounded-2xl rounded-tl-none flex gap-1">
+                      <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></div>
+                      <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce delay-75"></div>
+                      <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce delay-150"></div>
+                    </div>
+                  </div>
+                )}
               </div>
-            ))}
-            {isLoading && (
-              <div className="flex justify-start">
-                <div className="bg-slate-100 p-4 rounded-2xl rounded-tl-none flex gap-1">
-                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></div>
-                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce delay-75"></div>
-                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce delay-150"></div>
-                </div>
-              </div>
-            )}
-          </div>
 
-          <div className="p-4 bg-slate-50 border-t border-slate-100">
-            <div className="relative">
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder="Pergunte sobre seus dados..."
-                className="w-full bg-white border border-slate-200 rounded-2xl py-3 pl-4 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
-              />
-              <button
-                onClick={handleSend}
-                disabled={!input.trim() || isLoading}
-                className="absolute right-2 top-1.5 p-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-              >
-                <Send size={18} />
+              <div className="p-4 bg-slate-50 border-t border-slate-100">
+                <div className="relative">
+                  <input
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                    placeholder="Pergunte sobre seus dados..."
+                    className="w-full bg-white border border-slate-200 rounded-2xl py-3 pl-4 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                  />
+                  <button
+                    onClick={handleSend}
+                    disabled={!input.trim() || isLoading}
+                    className="absolute right-2 top-1.5 p-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                  >
+                    <Send size={18} />
+                  </button>
+                </div>
+                <p className="text-[10px] text-center text-slate-400 mt-2">
+                  Powered by FinanceFlow Gemini Core
+                </p>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 p-8 flex flex-col items-center justify-center text-center space-y-6">
+              <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-2">
+                <Sparkles size={40} className="text-indigo-600" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-slate-800 mb-2">Recurso Premium</h3>
+                <p className="text-sm text-slate-500 leading-relaxed">
+                  A nossa Inteligência Artificial analisa seus gastos e dá dicas personalizadas. Faça o upgrade para desbloquear!
+                </p>
+              </div>
+              <button className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all">
+                Assinar Premium
               </button>
             </div>
-            <p className="text-[10px] text-center text-slate-400 mt-2">
-              Powered by FinanceFlow Gemini Core
-            </p>
-          </div>
+          )}
         </div>
       )}
     </>
