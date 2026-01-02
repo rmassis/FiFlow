@@ -1,12 +1,12 @@
 
 import React from 'react';
-import { MOCK_INVESTMENTS } from '../constants';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  PieChart as PieChartIcon, 
-  ArrowUpRight, 
-  Plus, 
+import { MOCK_INVESTMENTS } from '../../constants';
+import {
+  TrendingUp,
+  TrendingDown,
+  PieChart as PieChartIcon,
+  ArrowUpRight,
+  Plus,
   Search,
   Filter,
   Layers,
@@ -20,7 +20,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, AreaChart, Area, XAx
 const InvestmentsPage: React.FC = () => {
   const totalValue = MOCK_INVESTMENTS.reduce((acc, curr) => acc + curr.value, 0);
   const totalDailyChange = MOCK_INVESTMENTS.reduce((acc, curr) => acc + (curr.value * (curr.change24h / 100)), 0);
-  
+
   const allocationData = [
     { name: 'Renda Fixa', value: MOCK_INVESTMENTS.filter(i => i.type === 'FIXED_INCOME').reduce((acc, curr) => acc + curr.value, 0), color: '#6366f1' },
     { name: 'Ações', value: MOCK_INVESTMENTS.filter(i => i.type === 'STOCK').reduce((acc, curr) => acc + curr.value, 0), color: '#10b981' },
@@ -106,14 +106,14 @@ const InvestmentsPage: React.FC = () => {
               <AreaChart data={performanceData}>
                 <defs>
                   <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} hide />
-                <Tooltip 
+                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} hide />
+                <Tooltip
                   contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
                 />
                 <Area type="monotone" dataKey="value" stroke="#6366f1" fillOpacity={1} fill="url(#colorValue)" strokeWidth={3} />
@@ -168,7 +168,7 @@ const InvestmentsPage: React.FC = () => {
           <div className="flex items-center gap-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-              <input 
+              <input
                 placeholder="Filtrar ativos..."
                 className="bg-slate-50 border-none rounded-xl pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500/20 w-48"
               />
@@ -182,7 +182,7 @@ const InvestmentsPage: React.FC = () => {
             </button>
           </div>
         </div>
-        
+
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-slate-50/50">

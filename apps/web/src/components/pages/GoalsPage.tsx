@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { MOCK_GOALS } from '../constants';
+import { MOCK_GOALS } from '../../constants';
 import { Target, Plus, TrendingUp, Calendar, ChevronRight, MoreVertical, Star } from 'lucide-react';
 
 const GoalsPage: React.FC = () => {
@@ -29,21 +29,21 @@ const GoalsPage: React.FC = () => {
                 <p className="text-xl font-bold opacity-90">R$ {totalTarget.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <div className="flex justify-between text-sm font-bold">
                 <span>{Math.round(overallProgress)}% Concluído</span>
                 <span className="opacity-80">R$ {(totalTarget - totalSaved).toLocaleString('pt-BR')} restantes</span>
               </div>
               <div className="h-3 bg-white/20 rounded-full overflow-hidden backdrop-blur-sm">
-                <div 
+                <div
                   className="h-full bg-white rounded-full transition-all duration-1000 ease-out"
                   style={{ width: `${overallProgress}%` }}
                 />
               </div>
             </div>
           </div>
-          
+
           {/* Abstract background shapes */}
           <div className="absolute -right-16 -top-16 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
           <div className="absolute -left-16 -bottom-16 w-48 h-48 bg-indigo-400/20 rounded-full blur-2xl"></div>
@@ -105,7 +105,7 @@ const GoalsPage: React.FC = () => {
                 </div>
 
                 <div className="relative h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div 
+                  <div
                     className="absolute top-0 left-0 h-full bg-indigo-600 rounded-full transition-all duration-1000 ease-out"
                     style={{ width: `${progress}%` }}
                   />

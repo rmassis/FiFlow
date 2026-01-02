@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { MOCK_CARDS } from '../constants.tsx';
+import { MOCK_CARDS } from '../../constants.tsx';
 import { CreditCard as CardIcon, Plus, Calendar, ShieldCheck, AlertCircle, Info, MoreHorizontal } from 'lucide-react';
 
 const CardsPage: React.FC = () => {
@@ -70,9 +70,9 @@ const CardsPage: React.FC = () => {
             <div key={card.id} className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
               {/* Card Visualization */}
               <div className="p-6">
-                <div 
+                <div
                   className="w-full aspect-[1.58/1] rounded-[24px] p-8 text-white relative overflow-hidden shadow-2xl transition-transform hover:scale-[1.02] cursor-pointer"
-                  style={{ 
+                  style={{
                     background: `linear-gradient(135deg, ${card.color}, ${card.color}dd)`,
                     boxShadow: `0 20px 40px -10px ${card.color}44`
                   }}
@@ -130,14 +130,13 @@ const CardsPage: React.FC = () => {
                   </div>
 
                   <div className="relative h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div 
-                      className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ${
-                        limitPercentage > 90 ? 'bg-rose-500' : limitPercentage > 70 ? 'bg-amber-500' : 'bg-indigo-500'
-                      }`}
+                    <div
+                      className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ${limitPercentage > 90 ? 'bg-rose-500' : limitPercentage > 70 ? 'bg-amber-500' : 'bg-indigo-500'
+                        }`}
                       style={{ width: `${limitPercentage}%` }}
                     />
                   </div>
-                  
+
                   <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                     <span>Limite: R$ {card.limit.toLocaleString('pt-BR')}</span>
                     <span>{Math.round(limitPercentage)}% Usado</span>

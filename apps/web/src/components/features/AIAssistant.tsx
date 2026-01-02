@@ -1,9 +1,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, X, Sparkles, MessageCircle } from 'lucide-react';
-import { getFinancialAdvice } from '../services/geminiService';
-import { ChatMessage } from '../types';
-import { MOCK_TRANSACTIONS, MOCK_BUDGET, MOCK_GOALS } from '../constants';
+import { getFinancialAdvice } from '../../services/geminiService';
+import { ChatMessage } from '../../types';
+import { MOCK_TRANSACTIONS, MOCK_BUDGET, MOCK_GOALS } from '../../constants';
 
 const AIAssistant: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -41,7 +41,7 @@ const AIAssistant: React.FC = () => {
   return (
     <>
       {/* Floating Button */}
-      <button 
+      <button
         onClick={() => setIsOpen(true)}
         className="fixed bottom-8 right-8 w-16 h-16 bg-indigo-600 text-white rounded-[24px] shadow-2xl shadow-indigo-300 flex items-center justify-center hover:scale-110 transition-transform active:scale-95 z-40"
       >
@@ -72,11 +72,10 @@ const AIAssistant: React.FC = () => {
           <div ref={scrollRef} className="flex-1 p-6 overflow-y-auto space-y-4 no-scrollbar">
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] p-4 rounded-2xl text-sm ${
-                  m.role === 'user' 
-                  ? 'bg-indigo-600 text-white rounded-tr-none' 
-                  : 'bg-slate-100 text-slate-700 rounded-tl-none'
-                }`}>
+                <div className={`max-w-[85%] p-4 rounded-2xl text-sm ${m.role === 'user'
+                    ? 'bg-indigo-600 text-white rounded-tr-none'
+                    : 'bg-slate-100 text-slate-700 rounded-tl-none'
+                  }`}>
                   {m.text}
                 </div>
               </div>
@@ -94,14 +93,14 @@ const AIAssistant: React.FC = () => {
 
           <div className="p-4 bg-slate-50 border-t border-slate-100">
             <div className="relative">
-              <input 
+              <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                 placeholder="Pergunte sobre seus dados..."
                 className="w-full bg-white border border-slate-200 rounded-2xl py-3 pl-4 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
               />
-              <button 
+              <button
                 onClick={handleSend}
                 disabled={!input.trim() || isLoading}
                 className="absolute right-2 top-1.5 p-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors"

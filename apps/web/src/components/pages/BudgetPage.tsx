@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { CATEGORIES, MOCK_BUDGET } from '../constants';
+import { CATEGORIES, MOCK_BUDGET } from '../../constants';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { Edit2, Plus, Info, AlertCircle, CheckCircle2 } from 'lucide-react';
 
@@ -15,7 +15,7 @@ const BudgetPage: React.FC = () => {
     const planned = budgetEntry?.planned || 0;
     const actual = budgetEntry?.actual || 0;
     const percent = planned > 0 ? (actual / planned) * 100 : 0;
-    
+
     return {
       ...cat,
       planned,
@@ -55,7 +55,7 @@ const BudgetPage: React.FC = () => {
               <span className="text-[10px] font-bold text-slate-400 uppercase">Utilizado</span>
             </div>
           </div>
-          
+
           <div className="flex-1 grid grid-cols-2 gap-8">
             <div>
               <p className="text-sm font-medium text-slate-500 mb-1">Total Planejado</p>
@@ -101,7 +101,7 @@ const BudgetPage: React.FC = () => {
             <span>Novo Orçamento</span>
           </button>
         </div>
-        
+
         <div className="p-8 space-y-8">
           {budgetData.map((item) => (
             <div key={item.id} className="space-y-3">
@@ -129,16 +129,15 @@ const BudgetPage: React.FC = () => {
                   </button>
                 </div>
               </div>
-              
+
               <div className="relative h-3 bg-slate-100 rounded-full overflow-hidden">
-                <div 
-                  className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ${
-                    item.percent > 100 ? 'bg-rose-500' : item.percent > 85 ? 'bg-amber-500' : 'bg-indigo-500'
-                  }`}
+                <div
+                  className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ${item.percent > 100 ? 'bg-rose-500' : item.percent > 85 ? 'bg-amber-500' : 'bg-indigo-500'
+                    }`}
                   style={{ width: `${Math.min(item.percent, 100)}%` }}
                 />
               </div>
-              
+
               <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 <span>0%</span>
                 <span>{Math.round(item.percent)}% utilizado</span>
