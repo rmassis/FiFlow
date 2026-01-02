@@ -30,6 +30,10 @@ import {
 
 import { FinanceProvider } from './contexts/FinanceContext.tsx';
 import { useFinance } from './contexts/FinanceContext.tsx';
+import { AuthProvider, useAuth } from './contexts/AuthContext.tsx';
+import LoginPage from './components/pages/LoginPage.tsx';
+import SignUpPage from './components/pages/SignUpPage.tsx';
+import { Loader2 } from 'lucide-react';
 
 const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -159,10 +163,34 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <FinanceProvider>
-      <AppContent />
-    </FinanceProvider>
-  )
+    <AuthProvider>
+      <FinanceProvider>
+        <AuthGuard />
+      </FinanceProvider>
+    </AuthProvider>
+  );
 }
+
+const AuthGuard: React.FC = () => {
+  const { user, loading } = useAuth();
+  const [view, setView] = useState<'login' | 'signup'>('login');
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <Loader2 size={48} className="text-indigo-600 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    if (view === 'signup') {
+      return <SignUpPage onNavigateToLogin={() => setView('login')} />;
+    }
+    return <LoginPage onNavigateToSignUp={() => setView('signup')} />;
+  }
+
+  return <AppContent />;
+};
 
 export default App;
