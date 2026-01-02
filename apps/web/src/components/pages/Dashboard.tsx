@@ -8,7 +8,7 @@ import { TrendingUp, TrendingDown, DollarSign, Wallet } from 'lucide-react';
 import { useFinance } from '../../contexts/FinanceContext';
 
 const Dashboard: React.FC = () => {
-  const { transactions, budgets, categories } = useFinance();
+  const { transactions, budgets, categories, accounts, investments } = useFinance();
 
   const totalIncome = transactions
     .filter(t => t.type === 'INCOME')
@@ -20,10 +20,15 @@ const Dashboard: React.FC = () => {
 
   const balance = totalIncome - totalExpenses;
 
+  const totalAssets = accounts.reduce((acc, curr) => acc + curr.balance, 0) +
+    investments.reduce((acc, curr) => acc + curr.value, 0);
+
+  const prevMonthTotalIncome = 0; // Ideally calculate from past transactions
+  const prevMonthTotalExpenses = 0;
+
   const chartData = [
-    { name: 'Jan', income: 4500, expenses: 3200 },
-    { name: 'Fev', income: 5200, expenses: 3800 },
-    { name: 'Mar', income: totalIncome, expenses: totalExpenses },
+    { name: 'Anterior', income: prevMonthTotalIncome, expenses: prevMonthTotalExpenses },
+    { name: 'Atual', income: totalIncome, expenses: totalExpenses },
   ];
 
   const pieData = budgets.map(b => {
@@ -45,8 +50,8 @@ const Dashboard: React.FC = () => {
             <Wallet size={24} />
           </div>
           <span className="text-sm text-slate-500 font-medium">Patrimônio Total</span>
-          <span className="text-2xl font-bold text-slate-800">R$ 158.260,87</span>
-          <div className="text-xs text-indigo-600 font-medium">+2.5% vs mês anterior</div>
+          <span className="text-2xl font-bold text-slate-800">R$ {totalAssets.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+          <div className="text-xs text-indigo-600 font-medium">Calculado em tempo real</div>
         </div>
 
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-2">
@@ -55,7 +60,7 @@ const Dashboard: React.FC = () => {
           </div>
           <span className="text-sm text-slate-500 font-medium">Total de Receitas</span>
           <span className="text-2xl font-bold text-emerald-600">R$ {totalIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-          <div className="text-xs text-slate-400">Previsto: R$ 9.200,00</div>
+          <div className="text-xs text-slate-400">Acompanhamento mensal</div>
         </div>
 
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-2">
@@ -64,7 +69,7 @@ const Dashboard: React.FC = () => {
           </div>
           <span className="text-sm text-slate-500 font-medium">Total de Despesas</span>
           <span className="text-2xl font-bold text-rose-600">R$ {totalExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-          <div className="text-xs text-rose-600 font-medium">78% do orçamento atingido</div>
+          <div className="text-xs text-rose-600 font-medium">Controle de gastos ativo</div>
         </div>
 
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-2">
@@ -73,7 +78,7 @@ const Dashboard: React.FC = () => {
           </div>
           <span className="text-sm text-slate-500 font-medium">Saldo Disponível</span>
           <span className="text-2xl font-bold text-slate-800">R$ {balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-          <div className="text-xs text-blue-600 font-medium">Ótima margem de segurança</div>
+          <div className="text-xs text-blue-600 font-medium">{balance >= 0 ? 'Saldo positivo' : 'Atenção ao saldo'}</div>
         </div>
       </div>
 

@@ -55,9 +55,9 @@ const AppContent: React.FC = () => {
   ];
 
   const userProfile = {
-    name: 'Brad Pitt',
-    plan: 'Plano Premium',
-    avatarUrl: 'https://picsum.photos/40'
+    name: session?.user?.email?.split('@')[0] || 'Usuário',
+    plan: 'Plano Beta',
+    avatarUrl: `https://ui-avatars.com/api/?name=${session?.user?.email || 'U'}&background=6366f1&color=fff`
   };
 
   const renderContent = () => {
@@ -107,9 +107,11 @@ const AppContent: React.FC = () => {
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
           <div>
             <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-              Olá, Brad Pitt 👋
+              Olá, {userProfile.name} 👋
             </h1>
-            <p className="text-slate-500 font-medium">Aqui está o resumo financeiro de Março de 2025</p>
+            <p className="text-slate-500 font-medium whitespace-capitalize">
+              Aqui está o resumo financeiro de {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+            </p>
           </div>
 
           <div className="flex items-center gap-4">

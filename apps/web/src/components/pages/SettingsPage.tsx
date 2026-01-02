@@ -1,14 +1,15 @@
 
-import React, { useState } from 'react';
-import { 
-  User, 
-  Bell, 
-  Shield, 
-  Smartphone, 
-  Globe, 
-  Moon, 
-  CreditCard, 
-  LogOut, 
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../services/supabase';
+import {
+  User,
+  Bell,
+  Shield,
+  Smartphone,
+  Globe,
+  Moon,
+  CreditCard,
+  LogOut,
   ChevronRight,
   Sparkles,
   Database,
@@ -16,12 +17,24 @@ import {
 } from 'lucide-react';
 
 const SettingsPage: React.FC = () => {
+  const [user, setUser] = useState<{ email?: string; name?: string } | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [notifications, setNotifications] = useState({
     push: true,
     email: false,
     aiAlerts: true
   });
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        setUser({
+          email: user.email,
+          name: user.email?.split('@')[0]
+        });
+      }
+    });
+  }, []);
 
   const SettingItem = ({ icon: Icon, title, subtitle, action }: { icon: any, title: string, subtitle: string, action?: React.ReactNode }) => (
     <div className="flex items-center justify-between p-6 bg-white hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-0 first:rounded-t-[24px] last:rounded-b-[24px]">
@@ -54,25 +67,25 @@ const SettingsPage: React.FC = () => {
               </div>
             </div>
             <div>
-              <h3 className="text-xl font-bold text-slate-800">Brad Pitt</h3>
-              <p className="text-sm text-slate-500 mb-2">brad.pitt@financeflow.com</p>
+              <h3 className="text-xl font-bold text-slate-800">{user?.name || 'Carregando...'}</h3>
+              <p className="text-sm text-slate-500 mb-2">{user?.email || 'email@exemplo.com'}</p>
               <span className="px-3 py-1 bg-indigo-50 text-indigo-600 text-[10px] font-bold rounded-full uppercase tracking-widest border border-indigo-100">
-                Plano Premium
+                Plano Beta
               </span>
             </div>
             <button className="ml-auto px-6 py-2.5 bg-slate-900 text-white font-bold rounded-xl text-xs hover:bg-slate-800 transition-all">
               Editar Perfil
             </button>
           </div>
-          
-          <SettingItem 
-            icon={Shield} 
-            title="Segurança da Conta" 
+
+          <SettingItem
+            icon={Shield}
+            title="Segurança da Conta"
             subtitle="Gerencie sua senha e autenticação de dois fatores"
           />
-          <SettingItem 
-            icon={Smartphone} 
-            title="Dispositivos Conectados" 
+          <SettingItem
+            icon={Smartphone}
+            title="Dispositivos Conectados"
             subtitle="Sessões ativas no seu celular, tablet ou desktop"
           />
         </div>
@@ -82,12 +95,12 @@ const SettingsPage: React.FC = () => {
       <section>
         <h2 className="text-xl font-bold text-slate-800 mb-4 px-2">Preferências do Sistema</h2>
         <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
-          <SettingItem 
-            icon={Moon} 
-            title="Modo Escuro" 
+          <SettingItem
+            icon={Moon}
+            title="Modo Escuro"
             subtitle="Alterne entre o tema claro e escuro"
             action={
-              <button 
+              <button
                 onClick={() => setIsDarkMode(!isDarkMode)}
                 className={`w-12 h-6 rounded-full transition-colors relative ${isDarkMode ? 'bg-indigo-600' : 'bg-slate-200'}`}
               >
@@ -95,14 +108,14 @@ const SettingsPage: React.FC = () => {
               </button>
             }
           />
-          <SettingItem 
-            icon={Globe} 
-            title="Idioma e Moeda" 
+          <SettingItem
+            icon={Globe}
+            title="Idioma e Moeda"
             subtitle="Português (Brasil) - BRL (R$)"
           />
-          <SettingItem 
-            icon={Sparkles} 
-            title="IA FinanceFlow Assistant" 
+          <SettingItem
+            icon={Sparkles}
+            title="IA FinanceFlow Assistant"
             subtitle="Ajuste o tom e a frequência dos conselhos da IA"
           />
         </div>
@@ -112,22 +125,22 @@ const SettingsPage: React.FC = () => {
       <section>
         <h2 className="text-xl font-bold text-slate-800 mb-4 px-2">Notificações</h2>
         <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
-          <SettingItem 
-            icon={Bell} 
-            title="Notificações Push" 
+          <SettingItem
+            icon={Bell}
+            title="Notificações Push"
             subtitle="Alertas de gastos excedidos e faturas"
             action={
-              <button 
-                onClick={() => setNotifications({...notifications, push: !notifications.push})}
+              <button
+                onClick={() => setNotifications({ ...notifications, push: !notifications.push })}
                 className={`w-12 h-6 rounded-full transition-colors relative ${notifications.push ? 'bg-emerald-500' : 'bg-slate-200'}`}
               >
                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${notifications.push ? 'left-7' : 'left-1'}`} />
               </button>
             }
           />
-          <SettingItem 
-            icon={Database} 
-            title="Backup e Dados" 
+          <SettingItem
+            icon={Database}
+            title="Backup e Dados"
             subtitle="Sincronização automática com a nuvem"
             action={
               <div className="flex items-center gap-2 text-emerald-600">
@@ -151,7 +164,7 @@ const SettingsPage: React.FC = () => {
               <CreditCard size={24} />
             </div>
           </div>
-          
+
           <div className="flex items-center gap-4 mb-8">
             <div className="bg-white/10 px-4 py-2 rounded-xl">
               <span className="text-2xl font-bold">R$ 29,90</span>
