@@ -9,6 +9,7 @@ import CardsPage from './components/pages/CardsPage.tsx';
 import AccountsPage from './components/pages/AccountsPage.tsx';
 import SettingsPage from './components/pages/SettingsPage.tsx';
 import TransactionList from './components/features/TransactionList.tsx';
+import CategoriesPage from './components/pages/CategoriesPage.tsx';
 import ImportModal from './components/features/ImportModal.tsx';
 import AIAssistant from './components/features/AIAssistant.tsx';
 import {
@@ -27,14 +28,21 @@ import {
 } from 'lucide-react';
 
 
-const App: React.FC = () => {
+import { FinanceProvider } from './contexts/FinanceContext.tsx';
+import { useFinance } from './contexts/FinanceContext.tsx';
+
+const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Usar hook para manipulação
+  const { addTransaction, categories, transactions } = useFinance();
+
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'transactions', label: 'Lançamentos', icon: ArrowRightLeft },
+    { id: 'categories', label: 'Categorias', icon: Wallet },
     { id: 'budget', label: 'Orçamento', icon: Receipt },
     { id: 'goals', label: 'Metas', icon: Target },
     { id: 'investments', label: 'Investimentos', icon: TrendingUp },
@@ -67,6 +75,8 @@ const App: React.FC = () => {
         return <SettingsPage />;
       case 'transactions':
         return <TransactionList />;
+      case 'categories':
+        return <CategoriesPage />;
       default:
         return (
           <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in zoom-in-95">
@@ -136,8 +146,9 @@ const App: React.FC = () => {
         <ImportModal
           isOpen={isImportOpen}
           onClose={() => setIsImportOpen(false)}
-          onImport={(files, accountId) => {
-            console.log('Importing files:', files.map(f => f.name), 'for Account ID:', accountId);
+          onImport={(importedTransactions) => {
+            // Adicionar cada transação importada ao contexto
+            importedTransactions.forEach(t => addTransaction(t));
             setIsImportOpen(false);
           }}
         />
@@ -145,5 +156,13 @@ const App: React.FC = () => {
     </div>
   );
 };
+
+const App: React.FC = () => {
+  return (
+    <FinanceProvider>
+      <AppContent />
+    </FinanceProvider>
+  )
+}
 
 export default App;

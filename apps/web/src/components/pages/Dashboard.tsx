@@ -5,14 +5,16 @@ import {
   AreaChart, Area, Cell, PieChart, Pie
 } from 'recharts';
 import { TrendingUp, TrendingDown, DollarSign, Wallet } from 'lucide-react';
-import { MOCK_TRANSACTIONS, MOCK_BUDGET, CATEGORIES } from '../../constants';
+import { useFinance } from '../../contexts/FinanceContext.tsx';
 
 const Dashboard: React.FC = () => {
-  const totalIncome = MOCK_TRANSACTIONS
+  const { transactions, budgets, categories } = useFinance();
+
+  const totalIncome = transactions
     .filter(t => t.type === 'INCOME')
     .reduce((acc, curr) => acc + curr.amount, 0);
 
-  const totalExpenses = MOCK_TRANSACTIONS
+  const totalExpenses = transactions
     .filter(t => t.type === 'EXPENSE')
     .reduce((acc, curr) => acc + curr.amount, 0);
 
@@ -24,10 +26,15 @@ const Dashboard: React.FC = () => {
     { name: 'Mar', income: totalIncome, expenses: totalExpenses },
   ];
 
-  const pieData = MOCK_BUDGET.map(b => {
-    const cat = CATEGORIES.find(c => b.categoryId === c.id);
-    return { name: cat?.name || 'Outros', value: b.actual, color: cat?.color || '#cbd5e1' };
-  });
+  const pieData = budgets.map(b => {
+    const cat = categories.find(c => b.categoryId === c.id);
+    // Calcular actual baseado em transactions, pois budget pode estar desatualizado
+    const actual = transactions
+      .filter(t => t.category === cat?.name && t.type === 'EXPENSE')
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    return { name: cat?.name || 'Outros', value: actual, color: cat?.color || '#cbd5e1' };
+  }).filter(d => d.value > 0); // Mostrar apenas categorias com gastos
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">

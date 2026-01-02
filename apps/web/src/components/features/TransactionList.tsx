@@ -1,17 +1,15 @@
 
 import React, { useState } from 'react';
-import { Filter, Download, MoreHorizontal, Edit2, Trash2, Search, ArrowUpDown } from 'lucide-react';
-import { MOCK_TRANSACTIONS } from '../../constants.tsx';
+import { Filter, Download, MoreHorizontal, Edit2, Trash2, Search, ArrowUpDown, Loader2 } from 'lucide-react';
+import { useFinance } from '../../contexts/FinanceContext.tsx';
 
 const TransactionList: React.FC = () => {
-    // Estado local para permitir a simulação de exclusão
-    // Em uma app real, isso viria de um Context ou Redux/Query
-    const [transactions, setTransactions] = useState(MOCK_TRANSACTIONS);
+    const { transactions, deleteTransaction } = useFinance();
     const [searchTerm, setSearchTerm] = useState('');
 
     const handleDelete = (id: string, description: string) => {
         if (window.confirm(`Tem certeza que deseja excluir o lançamento "${description}"?`)) {
-            setTransactions(prev => prev.filter(t => t.id !== id));
+            deleteTransaction(id);
         }
     };
 
