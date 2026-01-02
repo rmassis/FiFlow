@@ -34,7 +34,7 @@ import {
 import { FinanceProvider } from './contexts/FinanceContext';
 import { useFinance } from './contexts/FinanceContext';
 
-const AppContent: React.FC = () => {
+const AppContent: React.FC<{ session: Session }> = ({ session }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -218,7 +218,7 @@ const App: React.FC = () => {
   console.log('Rendering FinanceProvider and AppContent');
   return (
     <FinanceProvider>
-      <AppContent />
+      <AppContent session={session} />
     </FinanceProvider>
   );
 }
