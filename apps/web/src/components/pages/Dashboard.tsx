@@ -5,7 +5,7 @@ import {
   AreaChart, Area, Cell, PieChart, Pie
 } from 'recharts';
 import { TrendingUp, TrendingDown, DollarSign, Wallet } from 'lucide-react';
-import { useFinance } from '../../contexts/FinanceContext.tsx';
+import { useFinance } from '../../contexts/FinanceContext';
 
 const Dashboard: React.FC = () => {
   const { transactions, budgets, categories } = useFinance();

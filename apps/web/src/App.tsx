@@ -1,17 +1,20 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sidebar } from '@fiflow/ui';
-import Dashboard from './components/pages/Dashboard.tsx';
-import BudgetPage from './components/pages/BudgetPage.tsx';
-import GoalsPage from './components/pages/GoalsPage.tsx';
-import InvestmentsPage from './components/pages/InvestmentsPage.tsx';
-import CardsPage from './components/pages/CardsPage.tsx';
-import AccountsPage from './components/pages/AccountsPage.tsx';
-import SettingsPage from './components/pages/SettingsPage.tsx';
-import TransactionList from './components/features/TransactionList.tsx';
-import CategoriesPage from './components/pages/CategoriesPage.tsx';
-import ImportModal from './components/features/ImportModal.tsx';
-import AIAssistant from './components/features/AIAssistant.tsx';
+import { Session } from '@supabase/supabase-js';
+import { supabase } from './services/supabase';
+import Dashboard from './components/pages/Dashboard';
+import BudgetPage from './components/pages/BudgetPage';
+import GoalsPage from './components/pages/GoalsPage';
+import InvestmentsPage from './components/pages/InvestmentsPage';
+import CardsPage from './components/pages/CardsPage';
+import AccountsPage from './components/pages/AccountsPage';
+import SettingsPage from './components/pages/SettingsPage';
+import TransactionList from './components/features/TransactionList';
+import CategoriesPage from './components/pages/CategoriesPage';
+import LoginPage from './components/pages/LoginPage';
+import SignUpPage from './components/pages/SignUpPage';
+import ImportModal from './components/features/ImportModal';
+import AIAssistant from './components/features/AIAssistant';
 import {
   Plus,
   Search,
@@ -28,12 +31,8 @@ import {
 } from 'lucide-react';
 
 
-import { FinanceProvider } from './contexts/FinanceContext.tsx';
-import { useFinance } from './contexts/FinanceContext.tsx';
-import { AuthProvider, useAuth } from './contexts/AuthContext.tsx';
-import LoginPage from './components/pages/LoginPage.tsx';
-import SignUpPage from './components/pages/SignUpPage.tsx';
-import { Loader2 } from 'lucide-react';
+import { FinanceProvider } from './contexts/FinanceContext';
+import { useFinance } from './contexts/FinanceContext';
 
 const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -41,7 +40,7 @@ const AppContent: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Usar hook para manipulação
-  const { addTransaction, categories, transactions } = useFinance();
+  const { addTransaction, categories, transactions, accounts } = useFinance();
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -150,9 +149,21 @@ const AppContent: React.FC = () => {
         <ImportModal
           isOpen={isImportOpen}
           onClose={() => setIsImportOpen(false)}
-          onImport={(importedTransactions) => {
+          onImport={(importedTransactions, accountId) => {
             // Adicionar cada transação importada ao contexto
-            importedTransactions.forEach(t => addTransaction(t));
+            const targetAccount = accounts.find(a => a.id === accountId);
+
+            importedTransactions.forEach(t => {
+              addTransaction({
+                date: t.date,
+                description: t.description,
+                amount: t.amount,
+                category: t.category,
+                type: t.type,
+                status: 'PAID',
+                account: targetAccount?.name || 'Importado'
+              });
+            });
             setIsImportOpen(false);
           }}
         />
@@ -162,35 +173,53 @@ const AppContent: React.FC = () => {
 };
 
 const App: React.FC = () => {
-  return (
-    <AuthProvider>
-      <FinanceProvider>
-        <AuthGuard />
-      </FinanceProvider>
-    </AuthProvider>
-  );
-}
+  const [session, setSession] = useState<Session | null>(null);
+  const [authView, setAuthView] = useState<'login' | 'signup'>('login');
+  const [loading, setLoading] = useState(true);
 
-const AuthGuard: React.FC = () => {
-  const { user, loading } = useAuth();
-  const [view, setView] = useState<'login' | 'signup'>('login');
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoading(false);
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  console.log('App Rendering - Session:', !!session, 'Loading:', loading);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <Loader2 size={48} className="text-indigo-600 animate-spin" />
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
       </div>
     );
   }
 
-  if (!user) {
-    if (view === 'signup') {
-      return <SignUpPage onNavigateToLogin={() => setView('login')} />;
-    }
-    return <LoginPage onNavigateToSignUp={() => setView('signup')} />;
+  if (!session) {
+    console.log('Rendering Auth View:', authView);
+    return authView === 'login' ? (
+      <LoginPage onNavigateToSignUp={() => setAuthView('signup')} />
+    ) : (
+      <SignUpPage onNavigateToLogin={() => setAuthView('login')} />
+    );
   }
 
-  return <AppContent />;
-};
+  console.log('Rendering FinanceProvider and AppContent');
+  return (
+    <FinanceProvider>
+      <AppContent />
+    </FinanceProvider>
+  );
+}
 
 export default App;
+

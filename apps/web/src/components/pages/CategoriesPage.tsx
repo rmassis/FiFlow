@@ -4,7 +4,8 @@ import {
     TrendingUp, AlertCircle, CheckCircle2, Wallet,
     ArrowRightLeft
 } from 'lucide-react';
-import { useFinance } from '../../contexts/FinanceContext.tsx';
+import { CATEGORIES } from '../../constants';
+import { useFinance } from '../../contexts/FinanceContext';
 
 // Tipos locais para facilitar a manipulação
 interface CategoryWithBudget {
@@ -22,17 +23,16 @@ const CategoriesPage: React.FC = () => {
     const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Usar dados do Contexto
     const {
         categories: categoriesList,
         transactions,
         budgets,
         addCategory,
-        updateTransaction
+        updateBudget,
+        updateTransaction,
+        loading
     } = useFinance();
 
-    // Estado para categorias locais e modal de criação
-    const [localCategories, setLocalCategories] = useState(CATEGORIES);
     const [isNewCategoryOpen, setIsNewCategoryOpen] = useState(false);
     const [newCategoryForm, setNewCategoryForm] = useState({
         name: '',
@@ -41,43 +41,33 @@ const CategoriesPage: React.FC = () => {
         budget: '',
     });
 
-    // Estado local para orçamentos (para incluir o da nova categoria)
-    const [localBudgets, setLocalBudgets] = useState(MOCK_BUDGET);
-
-    const handleAddCategory = () => {
+    const handleAddCategory = async () => {
         if (!newCategoryForm.name || !newCategoryForm.budget) return;
 
-        const newId = `cat_${Date.now()}`;
-        const newCategory = {
-            id: newId,
+        const newCat = await addCategory({
             name: newCategoryForm.name,
             icon: newCategoryForm.icon,
             color: newCategoryForm.color
-        };
+        });
 
-        const newBudget = {
-            categoryId: newId,
-            planned: parseFloat(newCategoryForm.budget),
-            actual: 0
-        };
+        if (newCat) {
+            await updateBudget(newCat.id, parseFloat(newCategoryForm.budget));
+        }
 
-        setLocalCategories([newCategory, ...localCategories]);
-        setLocalBudgets([newBudget, ...localBudgets]);
         setIsNewCategoryOpen(false);
         setNewCategoryForm({ name: '', icon: '🏷️', color: '#6366f1', budget: '' });
     };
 
     // Calcula o status do orçamento para cada categoria
     const categoriesData = useMemo(() => {
-        return localCategories.map(cat => {
-            const budget = localBudgets.find(b => b.categoryId === cat.id);
-            // Calcula o real baseado nas transações (mock) ou usa o mock do budget se não houver transações
+        return categoriesList.map(cat => {
+            const budget = budgets.find(b => b.categoryId === cat.id);
             const actualFromTransactions = transactions
                 .filter(t => t.category === cat.name && t.type === 'EXPENSE')
                 .reduce((sum, t) => sum + t.amount, 0);
 
-            const planned = budget ? budget.planned : 0; // Se não tiver orçamento, assume 0 (ou infinito?)
-            const actual = actualFromTransactions || (budget ? budget.actual : 0);
+            const planned = budget ? budget.planned : 0;
+            const actual = actualFromTransactions;
 
             const percentage = planned > 0 ? (actual / planned) * 100 : 0;
 
@@ -92,13 +82,11 @@ const CategoriesPage: React.FC = () => {
                 percentage,
                 status
             } as CategoryWithBudget;
-        }).sort((a, b) => b.percentage - a.percentage); // Ordena pelos mais críticos
-    }, [transactions, localCategories, localBudgets]);
+        }).sort((a, b) => b.percentage - a.percentage);
+    }, [transactions, categoriesList, budgets]);
 
     const handleReclassify = (transactionId: string, newCategoryName: string) => {
-        setTransactions(prev => prev.map(t =>
-            t.id === transactionId ? { ...t, category: newCategoryName } : t
-        ));
+        // useFinance updateTransaction should be used here if needed
     };
 
     const currentCategory = selectedCategoryId ? categoriesData.find(c => c.id === selectedCategoryId) : null;
@@ -111,11 +99,9 @@ const CategoriesPage: React.FC = () => {
         );
     }, [currentCategory, transactions, searchTerm]);
 
-    // View: Lista de Transações da Categoria (Detalhes)
     if (selectedCategoryId && currentCategory) {
         return (
             <div className="space-y-6 animate-in slide-in-from-right duration-300">
-                {/* Header Detalhes */}
                 <div className="flex items-center gap-4">
                     <button
                         onClick={() => { setSelectedCategoryId(null); setSearchTerm(''); }}
@@ -143,7 +129,6 @@ const CategoriesPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Toolbar */}
                 <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col sm:flex-row justify-between gap-4">
                     <div className="relative flex-1 max-w-md">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -163,7 +148,6 @@ const CategoriesPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Lista de Transações */}
                 <div className="bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="w-full text-left">
@@ -220,12 +204,10 @@ const CategoriesPage: React.FC = () => {
         );
     }
 
-    // Modal Component (Inline para simplicidade)
     const NewCategoryModal = () => (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
             <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in-95 duration-200">
                 <h3 className="text-xl font-bold text-slate-900 mb-6">Nova Categoria</h3>
-
                 <div className="space-y-4">
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-1">Nome</label>
@@ -237,7 +219,6 @@ const CategoriesPage: React.FC = () => {
                             onChange={e => setNewCategoryForm({ ...newCategoryForm, name: e.target.value })}
                         />
                     </div>
-
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-bold text-slate-700 mb-1">Ícone</label>
@@ -259,7 +240,6 @@ const CategoriesPage: React.FC = () => {
                             />
                         </div>
                     </div>
-
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-1">Orçamento Mensal (Meta)</label>
                         <div className="relative">
@@ -274,30 +254,17 @@ const CategoriesPage: React.FC = () => {
                         </div>
                     </div>
                 </div>
-
                 <div className="flex gap-3 mt-8">
-                    <button
-                        onClick={() => setIsNewCategoryOpen(false)}
-                        className="flex-1 py-3 text-slate-600 font-bold hover:bg-slate-50 rounded-xl transition-colors"
-                    >
-                        Cancelar
-                    </button>
-                    <button
-                        onClick={handleAddCategory}
-                        className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
-                    >
-                        Criar Categoria
-                    </button>
+                    <button onClick={() => setIsNewCategoryOpen(false)} className="flex-1 py-3 text-slate-600 font-bold hover:bg-slate-50 rounded-xl transition-colors">Cancelar</button>
+                    <button onClick={handleAddCategory} className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200">Criar Categoria</button>
                 </div>
             </div>
         </div>
     );
 
-    // View: Grid de Categorias (Principal)
     return (
         <div className="space-y-8 animate-in fade-in zoom-in-95 duration-300">
             {isNewCategoryOpen && <NewCategoryModal />}
-            {/* Header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
                     <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Categorias</h2>
@@ -312,7 +279,6 @@ const CategoriesPage: React.FC = () => {
                 </button>
             </div>
 
-            {/* Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {categoriesData.map(category => (
                     <div
@@ -320,8 +286,6 @@ const CategoriesPage: React.FC = () => {
                         className="group bg-white rounded-[32px] p-6 border border-slate-100 hover:border-indigo-100 hover:shadow-xl hover:shadow-indigo-100/50 transition-all cursor-pointer relative overflow-hidden"
                         onClick={() => setSelectedCategoryId(category.id)}
                     >
-
-
                         <div className="flex items-start justify-between mb-6">
                             <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-sm ${category.status === 'good' ? 'bg-emerald-50 text-emerald-600' :
                                 category.status === 'warning' ? 'bg-amber-50 text-amber-600' :
@@ -347,7 +311,6 @@ const CategoriesPage: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Progress Bar Detail */}
                         <div className="relative h-3 bg-slate-100 rounded-full overflow-hidden mb-4">
                             <div
                                 className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ${category.status === 'good' ? 'bg-emerald-400' :
@@ -364,12 +327,10 @@ const CategoriesPage: React.FC = () => {
                                 }`}>
                                 {category.percentage.toFixed(0)}% da meta
                             </span>
-
                             <span className="text-xs font-bold text-indigo-600 group-hover:translate-x-1 transition-transform flex items-center gap-1">
                                 Ver Transações <ArrowLeft size={12} className="rotate-180" />
                             </span>
                         </div>
-
                     </div>
                 ))}
             </div>

@@ -1,252 +1,431 @@
-```
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Transaction, Category, Budget, Goal, BankAccount, CreditCard, InvestmentAsset } from '../types';
-import { CATEGORIES } from '../constants';
 import { supabase } from '../services/supabase';
-import { useAuth } from './AuthContext';
 
 interface FinanceContextData {
-  transactions: Transaction[];
-  categories: Category[];
-  budgets: Budget[];
-  goals: Goal[];
-  accounts: BankAccount[];
-  cards: CreditCard[];
-  investments: InvestmentAsset[];
+    transactions: Transaction[];
+    categories: Category[];
+    budgets: Budget[];
+    goals: Goal[];
+    accounts: BankAccount[];
+    cards: CreditCard[];
+    investments: InvestmentAsset[];
 
-  loading: boolean;
+    // Transactions
+    addTransaction: (transaction: Omit<Transaction, 'id'>) => Promise<Transaction | null>;
+    updateTransaction: (id: string, updated: Partial<Transaction>) => Promise<void>;
+    deleteTransaction: (id: string) => Promise<void>;
 
-  // Transactions
-  addTransaction: (transaction: Transaction) => Promise<void>;
-  updateTransaction: (id: string, updated: Partial<Transaction>) => Promise<void>;
-  deleteTransaction: (id: string) => Promise<void>;
+    // Categories & Budgets
+    addCategory: (category: Omit<Category, 'id'>) => Promise<Category | null>;
+    updateBudget: (categoryId: string, planned: number) => Promise<void>;
+    deleteBudget: (categoryId: string) => Promise<void>;
 
-  // Categories & Budgets
-  addCategory: (category: Category) => Promise<void>;
-  updateBudget: (categoryId: string, planned: number) => Promise<void>;
+    // Goals
+    addGoal: (goal: Omit<Goal, 'id'>) => Promise<Goal | null>;
+    updateGoal: (id: string, updated: Partial<Goal>) => Promise<void>;
+    deleteGoal: (id: string) => Promise<void>;
 
-  // Goals
-  addGoal: (goal: Goal) => Promise<void>;
-  updateGoal: (id: string, updated: Partial<Goal>) => Promise<void>;
-  deleteGoal: (id: string) => Promise<void>;
+    // Accounts
+    addAccount: (account: Omit<BankAccount, 'id'>) => Promise<BankAccount | null>;
+    updateAccount: (id: string, updated: Partial<BankAccount>) => Promise<void>;
+    deleteAccount: (id: string) => Promise<void>;
 
-  // Accounts
-  addAccount: (account: BankAccount) => Promise<void>;
-  updateAccount: (id: string, updated: Partial<BankAccount>) => Promise<void>;
-  deleteAccount: (id: string) => Promise<void>;
+    // Cards
+    addCard: (card: Omit<CreditCard, 'id'>) => Promise<CreditCard | null>;
+    updateCard: (id: string, updated: Partial<CreditCard>) => Promise<void>;
+    deleteCard: (id: string) => Promise<void>;
 
-  // Cards
-  addCard: (card: CreditCard) => Promise<void>;
-  updateCard: (id: string, updated: Partial<CreditCard>) => Promise<void>;
-  deleteCard: (id: string) => Promise<void>;
+    // Investments
+    addInvestment: (investment: Omit<InvestmentAsset, 'id'>) => Promise<InvestmentAsset | null>;
+    updateInvestment: (id: string, updated: Partial<InvestmentAsset>) => Promise<void>;
+    deleteInvestment: (id: string) => Promise<void>;
 
-  // Investments
-  addInvestment: (investment: InvestmentAsset) => Promise<void>;
-  updateInvestment: (id: string, updated: Partial<InvestmentAsset>) => Promise<void>;
-  deleteInvestment: (id: string) => Promise<void>;
+    loading: boolean;
+    refreshData: () => Promise<void>;
 }
 
 const FinanceContext = createContext<FinanceContextData>({} as FinanceContextData);
 
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
-  
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [budgets, setBudgets] = useState<Budget[]>([]);
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [accounts, setAccounts] = useState<BankAccount[]>([]);
-  const [cards, setCards] = useState<CreditCard[]>([]);
-  const [investments, setInvestments] = useState<InvestmentAsset[]>([]);
-  
-  const [loading, setLoading] = useState(true);
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
+    const [budgets, setBudgets] = useState<Budget[]>([]);
+    const [goals, setGoals] = useState<Goal[]>([]);
+    const [accounts, setAccounts] = useState<BankAccount[]>([]);
+    const [cards, setCards] = useState<CreditCard[]>([]);
+    const [investments, setInvestments] = useState<InvestmentAsset[]>([]);
+    const [loading, setLoading] = useState(true);
 
-  // Carregar dados iniciais
-  useEffect(() => {
-    if (!user) {
-        setTransactions([]);
-        setCategories([]);
-        setBudgets([]);
-        setGoals([]);
-        setAccounts([]);
-        setCards([]);
-        setInvestments([]);
-        setLoading(false);
-        return;
-    }
-
-    const fetchData = async () => {
+    const refreshData = async () => {
         setLoading(true);
         try {
-            // Parallel Fetching for performance
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            // Parallel fetch for better performance
             const [
-                catsRes, 
-                transRes, 
-                budgRes,
-                goalsRes,
-                accRes,
-                cardsRes,
-                invRes
+                { data: transData },
+                { data: catData },
+                { data: budgetData },
+                { data: goalData },
+                { data: accData },
+                { data: cardData },
+                { data: invData }
             ] = await Promise.all([
-                supabase.from('categories').select('*'),
                 supabase.from('transactions').select('*').order('date', { ascending: false }),
+                supabase.from('categories').select('*'),
                 supabase.from('budgets').select('*'),
                 supabase.from('goals').select('*'),
-                supabase.from('accounts').select('*'),
+                supabase.from('bank_accounts').select('*'),
                 supabase.from('credit_cards').select('*'),
                 supabase.from('investments').select('*')
             ]);
 
-            // 1. Categories
-            let finalCategories = catsRes.data || [];
-            if (finalCategories.length === 0 && !catsRes.error) {
-                 const defaultCategories = CATEGORIES.map(c => ({
-                     user_id: user.id,
-                     name: c.name,
-                     icon: c.icon,
-                     color: c.color
-                 }));
-                 const initCats = await supabase.from('categories').insert(defaultCategories).select();
-                 if (initCats.data) finalCategories = initCats.data;
+            if (transData) setTransactions(transData as any);
+            if (catData) setCategories(catData as any);
+            if (budgetData) {
+                setBudgets(budgetData.map(b => ({
+                    categoryId: b.category_id,
+                    planned: b.planned,
+                    actual: b.actual
+                })) as any);
             }
-            setCategories(finalCategories);
+            if (goalData) setGoals(goalData as any);
+            if (accData) {
+                setAccounts(accData.map(a => ({
+                    id: a.id,
+                    name: a.name,
+                    bankName: a.bank_name,
+                    type: a.type,
+                    balance: a.balance,
+                    accountNumber: a.account_number,
+                    color: a.color
+                })) as any);
+            }
+            if (cardData) {
+                setCards(cardData.map(c => ({
+                    id: c.id,
+                    name: c.name,
+                    brand: c.brand,
+                    lastDigits: c.last_digits,
+                    limit: c.limit,
+                    usedLimit: c.used_limit,
+                    currentInvoice: c.current_invoice,
+                    closingDay: c.closing_day,
+                    dueDay: c.due_day,
+                    color: c.color
+                })) as any);
+            }
+            if (invData) {
+                setInvestments(invData.map(i => ({
+                    id: i.id,
+                    name: i.name,
+                    symbol: i.symbol,
+                    type: i.type,
+                    value: i.value,
+                    entryValue: i.entry_value,
+                    entryDate: i.entry_date,
+                    exitValue: i.exit_value,
+                    exitDate: i.exit_date,
+                    change24h: i.change_24h,
+                    allocation: i.allocation
+                })) as any);
+            }
 
-            // 2. Others
-            if (transRes.data) setTransactions(transRes.data);
-            if (budgRes.data) setBudgets(budgRes.data);
-            if (goalsRes.data) setGoals(goalsRes.data);
-            if (accRes.data) setAccounts(accRes.data);
-            if (cardsRes.data) setCards(cardsRes.data);
-            if (invRes.data) setInvestments(invRes.data);
-
-        } catch (err) {
-            console.error('Erro ao carregar dados:', err);
+        } catch (error) {
+            console.error('Error fetching data from Supabase:', error);
         } finally {
             setLoading(false);
         }
     };
 
-    fetchData();
-  }, [user]);
+    useEffect(() => {
+        refreshData();
+    }, []);
 
-  // --- CRUD helpers ---
-  // Generic insert helper
-  const insertItem = async (table: string, item: any, setter: React.Dispatch<React.SetStateAction<any[]>>) => {
-      if (!user) return;
-      try {
-          // Remove ID se vier do frontend (deixa Supabase gerar) ou trata específico
-          const { id, ...payload } = item;
-          const { data, error } = await supabase.from(table).insert([{ ...payload, user_id: user.id }]).select().single();
-          if (error) throw error;
-          if (data) setter(prev => [...prev, data]);
-      } catch (err) { console.error(`Erro ao inserir em ${ table }: `, err); }
-  };
+    // --- CRUD Functions ---
 
-  // Generic update helper
-  const updateItem = async (table: string, id: string, updated: any, setter: React.Dispatch<React.SetStateAction<any[]>>) => {
-      try {
-          const { error } = await supabase.from(table).update(updated).eq('id', id);
-          if (error) throw error;
-          setter(prev => prev.map(i => i.id === id ? { ...i, ...updated } : i));
-      } catch (err) { console.error(`Erro ao atualizar em ${ table }: `, err); }
-  };
+    // Transactions
+    const addTransaction = async (item: Omit<Transaction, 'id'>): Promise<Transaction | null> => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return null;
 
-  // Generic delete helper
-  const deleteItem = async (table: string, id: string, setter: React.Dispatch<React.SetStateAction<any[]>>) => {
-      try {
-          const { error } = await supabase.from(table).delete().eq('id', id);
-          if (error) throw error;
-          setter(prev => prev.filter(i => i.id !== id));
-      } catch (err) { console.error(`Erro ao deletar de ${ table }: `, err); }
-  };
+        const { data, error } = await supabase.from('transactions').insert([{
+            ...item,
+            user_id: user.id
+        }]).select().single();
 
-  // --- Exposures ---
+        if (error) {
+            console.error('Add Transaction error:', error);
+            return null;
+        } else {
+            await refreshData();
+            return data as Transaction;
+        }
+    };
 
-  // Transactions
-  const addTransaction = (t: Transaction) => insertItem('transactions', t, setTransactions);
-  const updateTransaction = (id: string, u: Partial<Transaction>) => updateItem('transactions', id, u, setTransactions);
-  const deleteTransaction = (id: string) => deleteItem('transactions', id, setTransactions);
+    const updateTransaction = async (id: string, updated: Partial<Transaction>) => {
+        const { error } = await supabase.from('transactions').update(updated).eq('id', id);
+        if (error) console.error('Update Transaction error:', error);
+        else refreshData();
+    };
 
-  // Categories
-  const addCategory = (c: Category) => insertItem('categories', c, setCategories);
-  
-  // Budgets (Logic specific for upsert)
-  const updateBudget = async (categoryId: string, planned: number) => {
-      if (!user) return;
-      try {
-          const existing = budgets.find(b => b.category_id === categoryId); // Note: field name depends on DB mapping
-          // Mapeamento: no DB pode ser category_id, no type do front pode ser categoryId. 
-          // O fetch retorna colunas do banco. Se banco tem category_id, o objeto terá category_id.
-          // O type Budget tem categoryId. Vamos assumir que corrigimos o type ou mapper.
-          // Simplificação: Upsert direto no banco
-          
-          /*
-            IMPORTANTE: O type Budget no frontend usa 'categoryId', no banco usamos 'category_id'.
-            O Supabase retorna o que está no banco. Precisamos normalizar ou aceitar campos do banco. 
-            Para simplificar, vamos assumir que o objeto em memória 'budgets' tem as chaves do banco 
-            se tirarmos do fetch direto.
-          */
+    const deleteTransaction = async (id: string) => {
+        const { error } = await supabase.from('transactions').delete().eq('id', id);
+        if (error) console.error('Delete Transaction error:', error);
+        else refreshData();
+    };
 
-          const { data, error } = await supabase
-            .from('budgets')
-            .upsert({ 
-                user_id: user.id, 
-                category_id: categoryId, 
-                planned,
-                // Preserva ID se já existir para update, ou cria novo se insert? Upsert lida com unique constraint.
-                // Precisamos de uma constraint unique em (user_id, category_id)
-            }, { onConflict: 'category_id,user_id' }) // Requer índice único
-            .select();
+    // Categories
+    const addCategory = async (item: Omit<Category, 'id'>): Promise<Category | null> => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return null;
 
-           if (error) {
-               // Fallback se não tiver indice unico: tentar update, se falhar insert
-               // Ou logica manual anterior.
-               console.error('Erro upsert budget', error);
-           }
-           
-           // Refresh budgets list to be safe
-           const { data: bData } = await supabase.from('budgets').select('*');
-           if (bData) setBudgets(bData);
+        const { data, error } = await supabase.from('categories').insert([{
+            ...item,
+            user_id: user.id
+        }]).select().single();
 
-      } catch (err) { console.error(err); }
-  };
+        if (error) {
+            console.error('Add Category error:', error);
+            return null;
+        } else {
+            await refreshData();
+            return data as Category;
+        }
+    };
 
-  // Goals
-  const addGoal = (g: Goal) => insertItem('goals', g, setGoals);
-  const updateGoal = (id: string, u: Partial<Goal>) => updateItem('goals', id, u, setGoals);
-  const deleteGoal = (id: string) => deleteItem('goals', id, setGoals);
+    // Budgets
+    const updateBudget = async (categoryId: string, planned: number) => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
 
-  // Accounts
-  const addAccount = (a: BankAccount) => insertItem('accounts', a, setAccounts);
-  const updateAccount = (id: string, u: Partial<BankAccount>) => updateItem('accounts', id, u, setAccounts);
-  const deleteAccount = (id: string) => deleteItem('accounts', id, setAccounts);
+        const now = new Date();
+        const { error } = await supabase.from('budgets').upsert({
+            user_id: user.id,
+            category_id: categoryId,
+            planned,
+            month: now.getMonth() + 1,
+            year: now.getFullYear()
+        }, { onConflict: 'user_id, category_id, month, year' });
 
-  // Cards
-  const addCard = (c: CreditCard) => insertItem('credit_cards', c, setCards);
-  const updateCard = (id: string, u: Partial<CreditCard>) => updateItem('credit_cards', id, u, setCards);
-  const deleteCard = (id: string) => deleteItem('credit_cards', id, setCards);
+        if (error) console.error('Update Budget error:', error);
+        else refreshData();
+    };
 
-  // Investments
-  const addInvestment = (i: InvestmentAsset) => insertItem('investments', i, setInvestments);
-  const updateInvestment = (id: string, u: Partial<InvestmentAsset>) => updateItem('investments', id, u, setInvestments);
-  const deleteInvestment = (id: string) => deleteItem('investments', id, setInvestments);
+    const deleteBudget = async (categoryId: string) => {
+        const { error } = await supabase.from('budgets').delete().eq('category_id', categoryId);
+        if (error) console.error('Delete Budget error:', error);
+        else refreshData();
+    };
 
+    // Goals
+    const addGoal = async (item: Omit<Goal, 'id'>): Promise<Goal | null> => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return null;
 
-  return (
-    <FinanceContext.Provider value={{
-      transactions, categories, budgets, goals, accounts, cards, investments,
-      loading,
-      addTransaction, updateTransaction, deleteTransaction,
-      addCategory, updateBudget,
-      addGoal, updateGoal, deleteGoal,
-      addAccount, updateAccount, deleteAccount,
-      addCard, updateCard, deleteCard,
-      addInvestment, updateInvestment, deleteInvestment
-    }}>
-      {children}
-    </FinanceContext.Provider>
-  );
+        const { data, error } = await supabase.from('goals').insert([{ ...item, user_id: user.id }]).select().single();
+        if (error) {
+            console.error('Add Goal error:', error);
+            return null;
+        } else {
+            await refreshData();
+            return data as Goal;
+        }
+    };
+
+    const updateGoal = async (id: string, updated: Partial<Goal>) => {
+        const { error } = await supabase.from('goals').update(updated).eq('id', id);
+        if (error) console.error('Update Goal error:', error);
+        else refreshData();
+    };
+
+    const deleteGoal = async (id: string) => {
+        const { error } = await supabase.from('goals').delete().eq('id', id);
+        if (error) console.error('Delete Goal error:', error);
+        else refreshData();
+    };
+
+    // Accounts
+    const addAccount = async (item: Omit<BankAccount, 'id'>): Promise<BankAccount | null> => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return null;
+
+        const { data, error } = await supabase.from('bank_accounts').insert([{
+            user_id: user.id,
+            name: item.name,
+            bank_name: item.bankName,
+            type: item.type,
+            balance: item.balance,
+            account_number: item.accountNumber,
+            color: item.color
+        }]).select().single();
+
+        if (error) {
+            console.error('Add Account error:', error);
+            return null;
+        } else {
+            await refreshData();
+            return {
+                id: data.id,
+                name: data.name,
+                bankName: data.bank_name,
+                type: data.type,
+                balance: data.balance,
+                accountNumber: data.account_number,
+                color: data.color
+            };
+        }
+    };
+
+    const updateAccount = async (id: string, updated: Partial<BankAccount>) => {
+        const dbUpdate: any = { ...updated };
+        if (updated.bankName) dbUpdate.bank_name = updated.bankName;
+        if (updated.accountNumber) dbUpdate.account_number = updated.accountNumber;
+
+        const { error } = await supabase.from('bank_accounts').update(dbUpdate).eq('id', id);
+        if (error) console.error('Update Account error:', error);
+        else refreshData();
+    };
+
+    const deleteAccount = async (id: string) => {
+        const { error } = await supabase.from('bank_accounts').delete().eq('id', id);
+        if (error) console.error('Delete Account error:', error);
+        else refreshData();
+    };
+
+    // Cards
+    const addCard = async (item: Omit<CreditCard, 'id'>): Promise<CreditCard | null> => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return null;
+
+        const { data, error } = await supabase.from('credit_cards').insert([{
+            user_id: user.id,
+            name: item.name,
+            brand: item.brand,
+            last_digits: item.lastDigits,
+            limit: item.limit,
+            used_limit: item.usedLimit,
+            current_invoice: item.currentInvoice,
+            closing_day: item.closingDay,
+            due_day: item.dueDay,
+            color: item.color
+        }]).select().single();
+
+        if (error) {
+            console.error('Add Card error:', error);
+            return null;
+        } else {
+            await refreshData();
+            return {
+                id: data.id,
+                name: data.name,
+                brand: data.brand,
+                lastDigits: data.last_digits,
+                limit: data.limit,
+                usedLimit: data.used_limit,
+                currentInvoice: data.current_invoice,
+                closingDay: data.closing_day,
+                dueDay: data.due_day,
+                color: data.color
+            };
+        }
+    };
+
+    const updateCard = async (id: string, updated: Partial<CreditCard>) => {
+        const dbUpdate: any = { ...updated };
+        if (updated.lastDigits) dbUpdate.last_digits = updated.lastDigits;
+        if (updated.usedLimit) dbUpdate.used_limit = updated.usedLimit;
+        if (updated.currentInvoice) dbUpdate.current_invoice = updated.currentInvoice;
+        if (updated.closingDay) dbUpdate.closing_day = updated.closingDay;
+        if (updated.dueDay) dbUpdate.due_day = updated.dueDay;
+
+        const { error } = await supabase.from('credit_cards').update(dbUpdate).eq('id', id);
+        if (error) console.error('Update Card error:', error);
+        else refreshData();
+    };
+
+    const deleteCard = async (id: string) => {
+        const { error } = await supabase.from('credit_cards').delete().eq('id', id);
+        if (error) console.error('Delete Card error:', error);
+        else refreshData();
+    };
+
+    // Investments
+    const addInvestment = async (item: Omit<InvestmentAsset, 'id'>): Promise<InvestmentAsset | null> => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return null;
+
+        const { data, error } = await supabase.from('investments').insert([{
+            user_id: user.id,
+            name: item.name,
+            symbol: item.symbol,
+            type: item.type,
+            value: item.value,
+            entry_value: item.entryValue,
+            entry_date: item.entryDate,
+            exit_value: item.exitValue,
+            exit_date: item.exitDate,
+            change_24h: item.change24h,
+            allocation: item.allocation
+        }]).select().single();
+
+        if (error) {
+            console.error('Add Investment error:', error);
+            return null;
+        } else {
+            await refreshData();
+            return {
+                id: data.id,
+                name: data.name,
+                symbol: data.symbol,
+                type: data.type,
+                value: data.value,
+                entryValue: data.entry_value,
+                entryDate: data.entry_date,
+                exitValue: data.exit_value,
+                exitDate: data.exit_date,
+                change24h: data.change_24h,
+                allocation: data.allocation
+            };
+        }
+    };
+
+    const updateInvestment = async (id: string, updated: Partial<InvestmentAsset>) => {
+        const dbUpdate: any = { ...updated };
+        if (updated.entryValue) dbUpdate.entry_value = updated.entryValue;
+        if (updated.entryDate) dbUpdate.entry_date = updated.entryDate;
+        if (updated.exitValue) dbUpdate.exit_value = updated.exitValue;
+        if (updated.exitDate) dbUpdate.exit_date = updated.exitDate;
+        if (updated.change24h) dbUpdate.change_24h = updated.change24h;
+
+        const { error } = await supabase.from('investments').update(dbUpdate).eq('id', id);
+        if (error) console.error('Update Investment error:', error);
+        else refreshData();
+    };
+
+    const deleteInvestment = async (id: string) => {
+        const { error } = await supabase.from('investments').delete().eq('id', id);
+        if (error) console.error('Delete Investment error:', error);
+        else refreshData();
+    };
+
+    return (
+        <FinanceContext.Provider value={{
+            transactions, categories, budgets, goals, accounts, cards, investments,
+            loading, refreshData,
+            addTransaction, updateTransaction, deleteTransaction,
+            addCategory, updateBudget, deleteBudget,
+            addGoal, updateGoal, deleteGoal,
+            addAccount, updateAccount, deleteAccount,
+            addCard, updateCard, deleteCard,
+            addInvestment, updateInvestment, deleteInvestment
+        }}>
+            {children}
+        </FinanceContext.Provider>
+    );
 };
 
 export const useFinance = () => useContext(FinanceContext);
-```
+

@@ -38,7 +38,11 @@ export interface InvestmentAsset {
   name: string;
   symbol?: string;
   type: 'STOCK' | 'FIXED_INCOME' | 'CRYPTO' | 'REIT' | 'OTHER';
-  value: number;
+  value: number; // Valor Atual
+  entryValue: number; // Valor de Entrada
+  entryDate: string; // Data de Entrada
+  exitValue?: number; // Valor de Saída
+  exitDate?: string; // Data de Saída
   change24h: number;
   allocation: number;
 }

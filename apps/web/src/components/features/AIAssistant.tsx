@@ -2,10 +2,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, X, Sparkles, MessageCircle } from 'lucide-react';
 import { getFinancialAdvice } from '../../services/geminiService';
+import { useFinance } from '../../contexts/FinanceContext';
 import { ChatMessage } from '../../types';
-import { MOCK_TRANSACTIONS, MOCK_BUDGET, MOCK_GOALS } from '../../constants';
+
 
 const AIAssistant: React.FC = () => {
+  const { transactions, budgets, goals } = useFinance();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: 'model', text: 'Olá! Sou seu assistente FinanceFlow Pro. Como posso ajudar com suas finanças hoje?', timestamp: new Date() }
@@ -29,14 +31,15 @@ const AIAssistant: React.FC = () => {
     setIsLoading(true);
 
     const response = await getFinancialAdvice(input, {
-      transactions: MOCK_TRANSACTIONS,
-      budget: MOCK_BUDGET,
-      goals: MOCK_GOALS
+      transactions: transactions,
+      budget: budgets,
+      goals: goals
     });
 
     setMessages(prev => [...prev, { role: 'model', text: response || 'Não consegui processar sua dúvida agora.', timestamp: new Date() }]);
     setIsLoading(false);
   };
+
 
   return (
     <>
@@ -73,8 +76,8 @@ const AIAssistant: React.FC = () => {
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[85%] p-4 rounded-2xl text-sm ${m.role === 'user'
-                    ? 'bg-indigo-600 text-white rounded-tr-none'
-                    : 'bg-slate-100 text-slate-700 rounded-tl-none'
+                  ? 'bg-indigo-600 text-white rounded-tr-none'
+                  : 'bg-slate-100 text-slate-700 rounded-tl-none'
                   }`}>
                   {m.text}
                 </div>

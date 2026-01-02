@@ -34,49 +34,49 @@ export const MOCK_BUDGET: Budget[] = [
 ];
 
 export const MOCK_INVESTMENTS: InvestmentAsset[] = [
-  { id: 'i1', name: 'Tesouro Selic 2029', type: 'FIXED_INCOME', value: 45000, change24h: 0.05, allocation: 45 },
-  { id: 'i2', name: 'Bitcoin', symbol: 'BTC', type: 'CRYPTO', value: 12500, change24h: 3.2, allocation: 12.5 },
-  { id: 'i3', name: 'CDB Banco Inter', type: 'FIXED_INCOME', value: 25000, change24h: 0.1, allocation: 25 },
-  { id: 'i4', name: 'Itaú Unibanco', symbol: 'ITUB4', type: 'STOCK', value: 8500, change24h: -1.2, allocation: 8.5 },
-  { id: 'i5', name: 'HGLG11', type: 'REIT', value: 9000, change24h: 0.45, allocation: 9 },
+  { id: 'i1', name: 'Tesouro Selic 2029', type: 'FIXED_INCOME', value: 45000, entryValue: 40000, entryDate: '2024-01-15', change24h: 0.05, allocation: 45 },
+  { id: 'i2', name: 'Bitcoin', symbol: 'BTC', type: 'CRYPTO', value: 12500, entryValue: 8000, entryDate: '2023-11-20', change24h: 3.2, allocation: 12.5 },
+  { id: 'i3', name: 'CDB Banco Inter', type: 'FIXED_INCOME', value: 25000, entryValue: 24000, entryDate: '2024-02-10', change24h: 0.1, allocation: 25 },
+  { id: 'i4', name: 'Itaú Unibanco', symbol: 'ITUB4', type: 'STOCK', value: 8500, entryValue: 9000, entryDate: '2024-01-05', change24h: -1.2, allocation: 8.5 },
+  { id: 'i5', name: 'HGLG11', type: 'REIT', value: 9000, entryValue: 8500, entryDate: '2023-12-15', change24h: 0.45, allocation: 9 },
 ];
 
 export const MOCK_CARDS: CreditCard[] = [
-  { 
-    id: 'c1', 
-    name: 'Nubank Ultravioleta', 
-    brand: 'MASTERCARD', 
-    lastDigits: '8821', 
-    limit: 15000, 
-    usedLimit: 4250.80, 
-    currentInvoice: 3850.20, 
-    closingDay: 25, 
-    dueDay: 2, 
-    color: '#820ad1' 
+  {
+    id: 'c1',
+    name: 'Nubank Ultravioleta',
+    brand: 'MASTERCARD',
+    lastDigits: '8821',
+    limit: 15000,
+    usedLimit: 4250.80,
+    currentInvoice: 3850.20,
+    closingDay: 25,
+    dueDay: 2,
+    color: '#820ad1'
   },
-  { 
-    id: 'c2', 
-    name: 'Inter Black', 
-    brand: 'MASTERCARD', 
-    lastDigits: '4412', 
-    limit: 12000, 
-    usedLimit: 1200.00, 
-    currentInvoice: 1200.00, 
-    closingDay: 15, 
-    dueDay: 22, 
-    color: '#ff7a00' 
+  {
+    id: 'c2',
+    name: 'Inter Black',
+    brand: 'MASTERCARD',
+    lastDigits: '4412',
+    limit: 12000,
+    usedLimit: 1200.00,
+    currentInvoice: 1200.00,
+    closingDay: 15,
+    dueDay: 22,
+    color: '#ff7a00'
   },
-  { 
-    id: 'c3', 
-    name: 'XP Visa Infinite', 
-    brand: 'VISA', 
-    lastDigits: '9901', 
-    limit: 25000, 
-    usedLimit: 850.50, 
-    currentInvoice: 850.50, 
-    closingDay: 10, 
-    dueDay: 17, 
-    color: '#1a1a1a' 
+  {
+    id: 'c3',
+    name: 'XP Visa Infinite',
+    brand: 'VISA',
+    lastDigits: '9901',
+    limit: 25000,
+    usedLimit: 850.50,
+    currentInvoice: 850.50,
+    closingDay: 10,
+    dueDay: 17,
+    color: '#1a1a1a'
   }
 ];
 

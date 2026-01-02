@@ -1,7 +1,7 @@
-
 import React, { useState } from 'react';
 import { Filter, Download, MoreHorizontal, Edit2, Trash2, Search, ArrowUpDown, Loader2 } from 'lucide-react';
-import { useFinance } from '../../contexts/FinanceContext.tsx';
+import { CATEGORIES } from '../../constants';
+import { useFinance } from '../../contexts/FinanceContext';
 
 const TransactionList: React.FC = () => {
     const { transactions, deleteTransaction } = useFinance();
@@ -14,12 +14,10 @@ const TransactionList: React.FC = () => {
     };
 
     const handleEdit = (id: string) => {
-        // Placeholder para modal de edição futuro
         console.log(`Editando transação ${id}`);
         alert(`Funcionalidade de Edição: Abrir modal para ID ${id}`);
     };
 
-    // Filtro simples por texto
     const filteredTransactions = transactions.filter(t =>
         t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
         t.category.toLowerCase().includes(searchTerm.toLowerCase())
@@ -27,7 +25,6 @@ const TransactionList: React.FC = () => {
 
     return (
         <div className="bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden">
-            {/* Header com Ações Gerais */}
             <div className="p-8 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h2 className="text-xl font-bold text-slate-800">Lançamentos</h2>
@@ -55,7 +52,6 @@ const TransactionList: React.FC = () => {
                 </div>
             </div>
 
-            {/* Tabela */}
             <div className="overflow-x-auto">
                 <table className="w-full text-left">
                     <thead className="bg-white border-b border-slate-100">
@@ -84,7 +80,6 @@ const TransactionList: React.FC = () => {
                             filteredTransactions.map((t) => (
                                 <tr key={t.id} className="hover:bg-slate-50/80 transition-all group">
                                     <td className="px-8 py-6 text-sm text-slate-500 font-bold tracking-tight whitespace-nowrap">
-                                        {/* Mantendo formato ISO para clean look, ou DD/MM/YYYY se preferir */}
                                         {t.date}
                                     </td>
                                     <td className="px-8 py-6">
@@ -104,28 +99,16 @@ const TransactionList: React.FC = () => {
                                     </td>
                                     <td className="px-8 py-6 text-center">
                                         <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${t.status === 'PAID'
-                                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                                            : 'bg-amber-50 text-amber-600 border border-amber-100'
+                                                ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                                                : 'bg-amber-50 text-amber-600 border border-amber-100'
                                             }`}>
                                             {t.status === 'PAID' ? 'Pago' : 'Pendente'}
                                         </span>
                                     </td>
                                     <td className="px-8 py-6 text-center">
                                         <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                            <button
-                                                onClick={() => handleEdit(t.id)}
-                                                className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
-                                                title="Editar"
-                                            >
-                                                <Edit2 size={16} />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDelete(t.id, t.description)}
-                                                className="p-2 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors"
-                                                title="Excluir"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
+                                            <button onClick={() => handleEdit(t.id)} className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors" title="Editar"><Edit2 size={16} /></button>
+                                            <button onClick={() => handleDelete(t.id, t.description)} className="p-2 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors" title="Excluir"><Trash2 size={16} /></button>
                                         </div>
                                     </td>
                                 </tr>
@@ -135,7 +118,6 @@ const TransactionList: React.FC = () => {
                 </table>
             </div>
 
-            {/* Pagination Footer (Visual Only, no logic yet) */}
             <div className="p-6 border-t border-slate-100 flex items-center justify-between text-xs font-medium text-slate-500">
                 <span>Exibindo {filteredTransactions.length} resultados</span>
                 <div className="flex gap-2">

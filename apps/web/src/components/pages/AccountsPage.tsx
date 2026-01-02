@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { MOCK_ACCOUNTS } from '../../constants.tsx';
+import { useFinance } from '../../contexts/FinanceContext';
 import {
   Wallet,
   Plus,
@@ -16,7 +16,8 @@ import {
 } from 'lucide-react';
 
 const AccountsPage: React.FC = () => {
-  const totalBalance = MOCK_ACCOUNTS.reduce((acc, curr) => acc + curr.balance, 0);
+  const { accounts } = useFinance();
+  const totalBalance = accounts.reduce((acc, curr) => acc + curr.balance, 0);
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -70,7 +71,12 @@ const AccountsPage: React.FC = () => {
 
       {/* Accounts Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {MOCK_ACCOUNTS.map((account) => (
+        {accounts.length === 0 && (
+          <div className="col-span-full py-12 text-center text-slate-500 bg-white rounded-[32px] border border-slate-100">
+            Nenhuma conta conectada ainda.
+          </div>
+        )}
+        {accounts.map((account) => (
           <div key={account.id} className="bg-white rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all group overflow-hidden">
             <div className="p-8">
               <div className="flex justify-between items-start mb-8">
