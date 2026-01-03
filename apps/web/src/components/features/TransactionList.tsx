@@ -4,7 +4,7 @@ import { CATEGORIES } from '../../constants';
 import { useFinance } from '../../contexts/FinanceContext';
 
 const TransactionList: React.FC = () => {
-    const { transactions, deleteTransaction } = useFinance();
+    const { transactions = [], deleteTransaction } = useFinance();
     const [searchTerm, setSearchTerm] = useState('');
 
     const handleDelete = (id: string, description: string) => {
@@ -99,8 +99,8 @@ const TransactionList: React.FC = () => {
                                     </td>
                                     <td className="px-8 py-6 text-center">
                                         <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${t.status === 'PAID'
-                                                ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                                                : 'bg-amber-50 text-amber-600 border border-amber-100'
+                                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                                            : 'bg-amber-50 text-amber-600 border border-amber-100'
                                             }`}>
                                             {t.status === 'PAID' ? 'Pago' : 'Pendente'}
                                         </span>

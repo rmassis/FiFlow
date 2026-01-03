@@ -8,7 +8,7 @@ import { ChatMessage } from '../../types';
 
 
 const AIAssistant: React.FC = () => {
-  const { transactions, budgets, goals } = useFinance();
+  const { transactions = [], budgets = [], goals = [] } = useFinance();
   const { isFree } = useSubscription();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([

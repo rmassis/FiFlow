@@ -14,6 +14,7 @@ import CategoriesPage from './components/pages/CategoriesPage';
 import LoginPage from './components/pages/LoginPage';
 import SignUpPage from './components/pages/SignUpPage';
 import ImportModal from './components/features/ImportModal';
+import UpdatePasswordModal from './components/features/UpdatePasswordModal';
 import AIAssistant from './components/features/AIAssistant';
 import {
   Plus,
@@ -38,7 +39,28 @@ import { SubscriptionProvider, useSubscription } from './contexts/SubscriptionCo
 const AppContent: React.FC<{ session: Session }> = ({ session }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isUpdatePasswordOpen, setIsUpdatePasswordOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    const checkUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      // Verifica query parameter OU hash (comum em magic links)
+      const hash = window.location.hash;
+      if (params.get('update_password') === 'true' || hash.includes('type=recovery') || hash.includes('type=invite')) {
+        setIsUpdatePasswordOpen(true);
+        // Limpa URL para não reabrir ao dar refresh
+        if (params.get('update_password') === 'true') {
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, '', newUrl);
+        }
+      }
+    };
+
+    checkUrl();
+    window.addEventListener('check-password-url', checkUrl);
+    return () => window.removeEventListener('check-password-url', checkUrl);
+  }, []);
 
   const { profile, loading: subLoading, plan } = useSubscription();
   const { addTransaction, categories, transactions, accounts } = useFinance();
@@ -172,6 +194,10 @@ const AppContent: React.FC<{ session: Session }> = ({ session }) => {
             setIsImportOpen(false);
           }}
         />
+        <UpdatePasswordModal
+          isOpen={isUpdatePasswordOpen}
+          onClose={() => setIsUpdatePasswordOpen(false)}
+        />
       </main>
     </div>
   );
@@ -192,8 +218,22 @@ const App: React.FC = () => {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth event:', event);
       setSession(session);
+
+      if (event === 'PASSWORD_RECOVERY') {
+        // Usuário clicou no link de redefinição ou aceitou convite que pede senha
+        setAuthView('login'); // Garante que não está em signup
+        // Pequeno delay para garantir que o AppContent monte
+        setTimeout(() => {
+          const params = new URLSearchParams(window.location.search);
+          params.set('update_password', 'true');
+          window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+          // Recarrega ou força atualização
+          window.dispatchEvent(new Event('check-password-url'));
+        }, 500);
+      }
     });
 
     return () => subscription.unsubscribe();

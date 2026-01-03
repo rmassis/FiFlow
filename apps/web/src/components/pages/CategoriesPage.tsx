@@ -24,9 +24,9 @@ const CategoriesPage: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
 
     const {
-        categories: categoriesList,
-        transactions,
-        budgets,
+        categories: categoriesList = [],
+        transactions = [],
+        budgets = [],
         addCategory,
         updateBudget,
         updateTransaction,

@@ -23,7 +23,10 @@ const AdminAccessModal: React.FC<AdminAccessModalProps> = ({ isOpen, onClose }) 
 
         try {
             const { error } = await supabase.functions.invoke('invite-privilege-user', {
-                body: { email }
+                body: {
+                    email,
+                    redirectTo: window.location.origin + '?update_password=true'
+                }
             });
 
             if (error) throw error;
@@ -37,7 +40,12 @@ const AdminAccessModal: React.FC<AdminAccessModalProps> = ({ isOpen, onClose }) 
         } catch (error: any) {
             console.error('Invite failed:', error);
             setStatus('error');
-            setErrorMessage(error.message || 'Falha ao processar convite.');
+            // Mensagem amigável para erro provável de usuário existente
+            if (error.message?.includes('FunctionsHttpError') || error.status === 400 || error.status === 422) {
+                setErrorMessage('Não foi possível enviar o convite. Verifique se o e-mail já está cadastrado.');
+            } else {
+                setErrorMessage(error.message || 'Falha ao processar convite.');
+            }
         } finally {
             setLoading(false);
         }

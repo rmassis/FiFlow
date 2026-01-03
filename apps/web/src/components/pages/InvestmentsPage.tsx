@@ -25,10 +25,17 @@ import {
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, AreaChart, Area, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 const InvestmentsPage: React.FC = () => {
-  const { investments, addInvestment, updateInvestment, deleteInvestment } = useFinance();
+  const { investments = [], addInvestment, updateInvestment, deleteInvestment } = useFinance();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<InvestmentAsset | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Fix: Delay rendering to prevent Recharts width error
+  const [ready, setReady] = useState(false);
+  React.useEffect(() => {
+    const timer = setTimeout(() => setReady(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   const filteredInvestments = investments.filter(i =>
     i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -150,52 +157,56 @@ const InvestmentsPage: React.FC = () => {
               ))}
             </div>
           </div>
-          <div className="h-[280px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={performanceData}>
-                <defs>
-                  <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.15} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} hide />
-                <Tooltip
-                  contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', padding: '12px 20px' }}
-                  itemStyle={{ fontWeight: 800, color: '#6366f1' }}
-                  labelStyle={{ fontWeight: 700, color: '#94a3b8', marginBottom: '4px' }}
-                />
-                <Area type="monotone" dataKey="value" stroke="#6366f1" fillOpacity={1} fill="url(#colorValue)" strokeWidth={4} dot={{ r: 4, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }} />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className="h-[280px] min-h-[280px]">
+            {ready && (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={performanceData}>
+                  <defs>
+                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.15} />
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} hide />
+                  <Tooltip
+                    contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', padding: '12px 20px' }}
+                    itemStyle={{ fontWeight: 800, color: '#6366f1' }}
+                    labelStyle={{ fontWeight: 700, color: '#94a3b8', marginBottom: '4px' }}
+                  />
+                  <Area type="monotone" dataKey="value" stroke="#6366f1" fillOpacity={1} fill="url(#colorValue)" strokeWidth={4} dot={{ r: 4, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
         {/* Allocation Pie */}
         <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm">
           <h3 className="text-xl font-black text-slate-800 mb-6 tracking-tight">Alocação</h3>
-          <div className="h-[200px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={allocationData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={65}
-                  outerRadius={85}
-                  paddingAngle={10}
-                  dataKey="value"
-                  stroke="none"
-                >
-                  {allocationData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+          <div className="h-[200px] min-h-[200px]">
+            {ready && (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={allocationData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={65}
+                    outerRadius={85}
+                    paddingAngle={10}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    {allocationData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
           <div className="mt-8 space-y-4">
             {allocationData.map((item, idx) => (

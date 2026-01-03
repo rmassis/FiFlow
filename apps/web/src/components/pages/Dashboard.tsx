@@ -8,7 +8,13 @@ import { TrendingUp, TrendingDown, DollarSign, Wallet } from 'lucide-react';
 import { useFinance } from '../../contexts/FinanceContext';
 
 const Dashboard: React.FC = () => {
-  const { transactions, budgets, categories, accounts, investments } = useFinance();
+  const {
+    transactions = [],
+    budgets = [],
+    categories = [],
+    accounts = [],
+    investments = []
+  } = useFinance();
 
   const totalIncome = transactions
     .filter(t => t.type === 'INCOME')
@@ -40,6 +46,15 @@ const Dashboard: React.FC = () => {
 
     return { name: cat?.name || 'Outros', value: actual, color: cat?.color || '#cbd5e1' };
   }).filter(d => d.value > 0); // Mostrar apenas categorias com gastos
+
+  // Fix: Delay rendering charts to ensure container has dimensions (avoids Recharts width -1 error)
+  const [ready, setReady] = React.useState(false);
+  React.useEffect(() => {
+    const timer = setTimeout(() => setReady(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!ready) return <div className="p-8 text-center text-slate-400">Carregando dashboard...</div>;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
