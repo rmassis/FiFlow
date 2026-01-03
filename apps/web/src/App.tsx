@@ -16,6 +16,7 @@ import SignUpPage from './components/pages/SignUpPage';
 import ImportModal from './components/features/ImportModal';
 import UpdatePasswordModal from './components/features/UpdatePasswordModal';
 import AIAssistant from './components/features/AIAssistant';
+import OnboardingWizard from './components/features/OnboardingWizard';
 import {
   Plus,
   Search,
@@ -63,7 +64,7 @@ const AppContent: React.FC<{ session: Session }> = ({ session }) => {
   }, []);
 
   const { profile, loading: subLoading, plan } = useSubscription();
-  const { addTransaction, categories, transactions, accounts } = useFinance();
+  const { addTransaction, categories, transactions, accounts, loading } = useFinance();
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -171,6 +172,13 @@ const AppContent: React.FC<{ session: Session }> = ({ session }) => {
 
         {/* AI Assistant Floating */}
         <AIAssistant />
+
+        {/* Onboarding Wizard */}
+        {/* Show if no accounts exist and data is loaded */}
+        <OnboardingWizard
+          isOpen={!loading && accounts.length === 0}
+          onClose={() => { /* Optional: Add logic to remember dismissal */ }}
+        />
 
         {/* Modals */}
         <ImportModal
