@@ -97,7 +97,7 @@ const TransactionList: React.FC = () => {
 
             <div className="p-8 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-xl font-bold text-slate-800">Lançamentos</h2>
+                    <h2 className="text-xl font-bold text-slate-800">Lançamentos (Local)</h2>
                     <p className="text-sm text-slate-500 font-medium mt-1">Histórico detalhado de sua movimentação</p>
                 </div>
                 <div className="flex items-center gap-3">
