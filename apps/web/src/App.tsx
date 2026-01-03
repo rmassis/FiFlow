@@ -113,7 +113,7 @@ const AppContent: React.FC<{ session: Session }> = ({ session }) => {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-black font-sans selection:bg-indigo-500/30">
+    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 font-sans selection:bg-indigo-500/30">
       <Sidebar
         activeTab={activeTab}
         setActiveTab={(tab) => {
