@@ -9,7 +9,7 @@ export const getFinancialAdvice = async (
   data: { transactions: Transaction[], budget: Budget[], goals: Goal[] }
 ) => {
   const model = "gemini-3-flash-preview";
-  
+
   const systemInstruction = `
     Você é um Especialista em Gestão Financeira Pessoal (Agente Financeiro IA).
     Sua missão é ajudar o usuário a organizar suas finanças, categorizar transações e dar conselhos estratégicos.
@@ -47,7 +47,7 @@ export const getFinancialAdvice = async (
 
 export const autoCategorize = async (description: string) => {
   const model = "gemini-3-flash-preview";
-  
+
   try {
     const response = await ai.models.generateContent({
       model,
