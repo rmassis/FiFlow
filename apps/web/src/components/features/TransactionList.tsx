@@ -63,10 +63,11 @@ const TransactionList: React.FC = () => {
                         <Filter size={16} />
                         <span className="hidden sm:inline">Filtros</span>
                     </button>
+                    <button className="flex items-center gap-2 px-4 py-2.5 bg-indigo-50 text-indigo-700 font-bold text-sm rounded-xl hover:bg-indigo-100 transition-colors">
                         <Download size={16} />
                         <span className="hidden sm:inline">Exportar</span>
                     </button>
-                    <button 
+                    <button
                         onClick={handleCreate}
                         className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white font-bold text-sm rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
                     >
