@@ -219,7 +219,6 @@ const Dashboard: React.FC = () => {
                   fill="url(#colorExpense)"
                   strokeWidth={3}
                   activeDot={{ r: 6, strokeWidth: 0, fill: '#f43f5e' }}
-                  fillRule='monotone' // Add fill rule for smoother curves if needed
                 />
               </AreaChart>
             </ResponsiveContainer>
