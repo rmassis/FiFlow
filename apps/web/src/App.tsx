@@ -119,7 +119,7 @@ const AppContent: React.FC<{ session: Session }> = ({ session }) => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50/50 dark:from-slate-950 dark:to-slate-900 transition-colors duration-500">
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
