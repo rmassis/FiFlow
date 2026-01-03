@@ -12,7 +12,6 @@ import {
   PiggyBank,
   Briefcase,
   ChevronRight,
-
   TrendingUp,
   X,
   Check
@@ -198,103 +197,104 @@ const AccountsPage: React.FC = () => {
         </div>
       </div>
     </div >
+    </div >
 
-      {/* New Account Modal */ }
-  {
-    isNewAccountModalOpen && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in">
-        <div className="bg-white rounded-[32px] w-full max-w-md p-8 shadow-2xl animate-in zoom-in-95 duration-200">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-xl font-bold text-slate-800">Nova Conta</h3>
-            <button
-              onClick={() => setIsNewAccountModalOpen(false)}
-              className="p-2 hover:bg-slate-100 rounded-full transition-colors"
-            >
-              <X size={20} className="text-slate-500" />
-            </button>
+  {/* New Account Modal */ }
+{
+  isNewAccountModalOpen && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in">
+      <div className="bg-white rounded-[32px] w-full max-w-md p-8 shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-bold text-slate-800">Nova Conta</h3>
+          <button
+            onClick={() => setIsNewAccountModalOpen(false)}
+            className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+          >
+            <X size={20} className="text-slate-500" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nome da Conta</label>
+            <input
+              autoFocus
+              placeholder="Ex: Conta Principal"
+              className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500 transition-all"
+              value={newAccountData.name}
+              onChange={e => setNewAccountData({ ...newAccountData, name: e.target.value })}
+            />
           </div>
 
-          <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nome da Conta</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Instituição</label>
               <input
-                autoFocus
-                placeholder="Ex: Conta Principal"
+                placeholder="Ex: Nubank"
                 className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500 transition-all"
-                value={newAccountData.name}
-                onChange={e => setNewAccountData({ ...newAccountData, name: e.target.value })}
+                value={newAccountData.bankName}
+                onChange={e => setNewAccountData({ ...newAccountData, bankName: e.target.value })}
               />
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Instituição</label>
-                <input
-                  placeholder="Ex: Nubank"
-                  className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500 transition-all"
-                  value={newAccountData.bankName}
-                  onChange={e => setNewAccountData({ ...newAccountData, bankName: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo</label>
-                <select
-                  className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500 transition-all"
-                  value={newAccountData.type}
-                  onChange={e => setNewAccountData({ ...newAccountData, type: e.target.value })}
-                >
-                  <option value="CHECKING">Corrente</option>
-                  <option value="SAVINGS">Poupança</option>
-                  <option value="INVESTMENT">Investimento</option>
-                  <option value="CASH">Carteira</option>
-                </select>
-              </div>
-            </div>
-
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Saldo Inicial</label>
-              <div className="relative">
-                <span className="absolute left-4 top-3.5 text-slate-400 font-bold">R$</span>
-                <input
-                  type="number"
-                  placeholder="0,00"
-                  className="w-full bg-slate-50 border-none rounded-xl pl-10 pr-4 py-3 text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500 transition-all"
-                  value={newAccountData.balance}
-                  onChange={e => setNewAccountData({ ...newAccountData, balance: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Cor do Card</label>
-              <div className="flex gap-2 flex-wrap">
-                {['#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6'].map(color => (
-                  <button
-                    key={color}
-                    onClick={() => setNewAccountData({ ...newAccountData, color })}
-                    className={`w-8 h-8 rounded-full transition-transform hover:scale-110 flex items-center justify-center ${newAccountData.color === color ? 'ring-2 ring-offset-2 ring-slate-400' : ''}`}
-                    style={{ backgroundColor: color }}
-                  >
-                    {newAccountData.color === color && <Check size={14} className="text-white" />}
-                  </button>
-                ))}
-              </div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo</label>
+              <select
+                className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500 transition-all"
+                value={newAccountData.type}
+                onChange={e => setNewAccountData({ ...newAccountData, type: e.target.value })}
+              >
+                <option value="CHECKING">Corrente</option>
+                <option value="SAVINGS">Poupança</option>
+                <option value="INVESTMENT">Investimento</option>
+                <option value="CASH">Carteira</option>
+              </select>
             </div>
           </div>
 
-          <div className="mt-8">
-            <button
-              onClick={handleSaveAccount}
-              disabled={loading || !newAccountData.name || !newAccountData.balance}
-              className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {loading ? 'Criando...' : 'Criar Conta'}
-            </button>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Saldo Inicial</label>
+            <div className="relative">
+              <span className="absolute left-4 top-3.5 text-slate-400 font-bold">R$</span>
+              <input
+                type="number"
+                placeholder="0,00"
+                className="w-full bg-slate-50 border-none rounded-xl pl-10 pr-4 py-3 text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500 transition-all"
+                value={newAccountData.balance}
+                onChange={e => setNewAccountData({ ...newAccountData, balance: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Cor do Card</label>
+            <div className="flex gap-2 flex-wrap">
+              {['#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6'].map(color => (
+                <button
+                  key={color}
+                  onClick={() => setNewAccountData({ ...newAccountData, color })}
+                  className={`w-8 h-8 rounded-full transition-transform hover:scale-110 flex items-center justify-center ${newAccountData.color === color ? 'ring-2 ring-offset-2 ring-slate-400' : ''}`}
+                  style={{ backgroundColor: color }}
+                >
+                  {newAccountData.color === color && <Check size={14} className="text-white" />}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
+
+        <div className="mt-8">
+          <button
+            onClick={handleSaveAccount}
+            disabled={loading || !newAccountData.name || !newAccountData.balance}
+            className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {loading ? 'Criando...' : 'Criar Conta'}
+          </button>
+        </div>
       </div>
-    )
-  }
+    </div>
+  )
+}
     </>
   );
 };
