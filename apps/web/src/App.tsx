@@ -39,6 +39,7 @@ import { SubscriptionProvider, useSubscription } from './contexts/SubscriptionCo
 
 const AppContent: React.FC<{ session: Session }> = ({ session }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isUpdatePasswordOpen, setIsUpdatePasswordOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -107,99 +108,96 @@ const AppContent: React.FC<{ session: Session }> = ({ session }) => {
       case 'categories':
         return <CategoriesPage />;
       default:
-        return (
-          <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in zoom-in-95">
-            <div className="w-24 h-24 bg-slate-100 rounded-[32px] flex items-center justify-center text-slate-300 mb-6">
-              <Calendar size={48} />
-            </div>
-            <h2 className="text-2xl font-bold text-slate-800 mb-2">Página em Construção</h2>
-            <p className="text-slate-500 max-w-xs mx-auto">Esta funcionalidade está sendo refinada pela nossa equipe para oferecer a melhor experiência.</p>
-          </div>
-        );
+        return <Dashboard />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50/50 dark:from-slate-950 dark:to-slate-900 transition-colors duration-500">
+    <div className="flex min-h-screen bg-slate-50 dark:bg-black font-sans selection:bg-indigo-500/30">
       <Sidebar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={(tab) => {
+          setActiveTab(tab);
+          setIsSidebarOpen(false);
+        }}
         menuItems={menuItems}
         user={userProfile}
+        mobileOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
       />
 
-      <main className="ml-64 min-h-screen p-8 lg:p-12">
-        {/* Header */}
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
-          <div>
-            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+      <main className="flex-1 md:ml-64 transition-all duration-300 min-h-screen flex flex-col">
+        {/* Mobile Header */}
+        <div className="md:hidden flex items-center justify-between p-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 -ml-2 text-slate-600 dark:text-slate-300"
+            >
+              <div className="space-y-1.5 w-6">
+                <span className="block w-6 h-0.5 bg-current rounded-full"></span>
+                <span className="block w-4 h-0.5 bg-current rounded-full"></span>
+                <span className="block w-5 h-0.5 bg-current rounded-full"></span>
+              </div>
+            </button>
+            <span className="font-bold text-lg text-slate-900 dark:text-white">FiFlow</span>
+          </div>
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center text-white font-bold text-xs">
+            {firstName[0]}
+          </div>
+        </div>
+
+        {/* Desktop Header / Top Bar */}
+        <header className="px-8 py-6 flex items-center justify-between md:sticky md:top-0 z-20 md:bg-slate-50/80 md:dark:bg-black/80 md:backdrop-blur-sm">
+          <div className="hidden md:block">
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white tracking-tight">
               Olá, {firstName} 👋
-            </h1>
-            <p className="text-slate-500 font-medium whitespace-capitalize">
-              Aqui está o resumo financeiro de {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+            </h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">
+              Aqui está o resumo financeiro de hoje
             </p>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="relative hidden md:block">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+          <div className="flex items-center gap-4 w-full md:w-auto mt-4 md:mt-0">
+            <div className="relative flex-1 md:w-96 group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={20} />
               <input
                 type="text"
-                placeholder="Buscar transações..."
-                className="bg-white border-none text-sm font-medium rounded-2xl pl-12 pr-6 py-3 w-64 shadow-sm focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                placeholder="Buscar transações, categorias..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 rounded-2xl py-3 pl-10 pr-4 text-sm font-medium text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 transition-all shadow-sm placeholder:text-slate-400"
               />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                <span className="p-1 px-1.5 bg-slate-100 dark:bg-slate-800 rounded-md text-[10px] font-bold text-slate-500 border border-slate-200 dark:border-slate-700">⌘ K</span>
+              </div>
             </div>
 
-            <button className="p-3 bg-white text-slate-400 rounded-2xl shadow-sm border border-slate-100 hover:text-indigo-600 transition-colors relative">
-              <Bell size={22} />
-              <div className="absolute top-3 right-3 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></div>
+            <button className="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-100 transition-all shadow-sm relative">
+              <Bell size={20} />
+              <span className="absolute top-2.5 right-3 w-2 h-2 bg-rose-500 rounded-full border-2 border-white dark:border-slate-900"></span>
             </button>
 
             <button
               onClick={() => setIsImportOpen(true)}
-              className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200 active:scale-95"
+              className="hidden md:flex items-center gap-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-5 py-3 rounded-2xl font-bold text-sm hover:opacity-90 transition-opacity shadow-lg shadow-slate-900/10"
             >
-              <Plus size={20} />
-              <span>Importar Dados</span>
+              <Plus size={18} strokeWidth={3} />
+              <span>Novo Lançamento</span>
             </button>
           </div>
+          <button
+            onClick={() => setIsImportOpen(true)}
+            className="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-2xl shadow-indigo-500/40 flex items-center justify-center z-50"
+          >
+            <Plus size={28} />
+          </button>
         </header>
 
-        {/* Dynamic Content */}
-        {renderContent()}
-
-        {/* AI Assistant Floating */}
-        <AIAssistant />
-
-        {/* Onboarding Wizard */}
-        {/* Show if no accounts exist and data is loaded */}
-        <OnboardingWizard
-          isOpen={!loading && accounts.length === 0}
-          onClose={() => { /* Optional: Add logic to remember dismissal */ }}
-        />
-
-        {/* Modals */}
-        <ImportModal
-          isOpen={isImportOpen}
-          onClose={() => setIsImportOpen(false)}
-          onImport={(importedTransactions, accountId) => {
-            // Adicionar cada transação importada ao contexto
-            const targetAccount = accounts.find(a => a.id === accountId);
-
-            importedTransactions.forEach(t => {
-              addTransaction({
-                date: t.date,
-                description: t.description,
-                amount: t.amount,
-                category: t.category,
-                type: t.type,
-                status: 'PAID',
-                account: targetAccount?.name || 'Importado'
+        account: targetAccount?.name || 'Importado'
               });
             });
-            setIsImportOpen(false);
+        setIsImportOpen(false);
           }}
         />
         <UpdatePasswordModal

@@ -57,7 +57,7 @@ const CardsPage: React.FC = () => {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Cards Overview Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="glass-panel p-8 rounded-[32px] flex flex-col justify-between relative overflow-hidden group">
+        <div className="glass-panel p-6 md:p-8 rounded-[32px] flex flex-col justify-between relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
             <Calendar size={64} />
           </div>
@@ -73,7 +73,7 @@ const CardsPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="glass-panel p-8 rounded-[32px] flex flex-col justify-between relative overflow-hidden group">
+        <div className="glass-panel p-6 md:p-8 rounded-[32px] flex flex-col justify-between relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
             <CardIcon size={64} />
           </div>
@@ -235,8 +235,8 @@ const CardsPage: React.FC = () => {
                   <div className="relative h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden shadow-inner">
                     <div
                       className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 shadow-sm ${limitPercentage > 90 ? 'bg-gradient-to-r from-rose-500 to-red-600' :
-                          limitPercentage > 70 ? 'bg-gradient-to-r from-amber-400 to-orange-500' :
-                            'bg-gradient-to-r from-indigo-500 to-violet-600'
+                        limitPercentage > 70 ? 'bg-gradient-to-r from-amber-400 to-orange-500' :
+                          'bg-gradient-to-r from-indigo-500 to-violet-600'
                         }`}
                       style={{ width: `${limitPercentage}%` }}
                     />
