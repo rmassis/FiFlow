@@ -54,10 +54,16 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
+            const profileData = {
+                id: user.id,
+                email: user.email,
+                updated_at: new Date().toISOString(),
+                ...updates
+            };
+
             const { error } = await supabase
                 .from('profiles')
-                .update(updates)
-                .eq('id', user.id);
+                .upsert(profileData);
 
             if (error) throw error;
             await refreshProfile();
