@@ -65,7 +65,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
             // Parallel fetch for better performance
             const [
-                { data: transData },
+                { data: transData, error: transError },
                 { data: catData },
                 { data: budgetData },
                 { data: goalData },
@@ -82,16 +82,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 supabase.from('investments').select('*')
             ]);
 
-            if (transData) setTransactions(transData as any);
+            if (transError) console.error('Error fetching transactions:', transError);
+
+            // Store raw data first
+            const rawCategories = catData || [];
+            const rawAccounts = accData || [];
+
             if (catData) setCategories(catData as any);
-            if (budgetData) {
-                setBudgets(budgetData.map(b => ({
-                    categoryId: b.category_id,
-                    planned: b.planned,
-                    actual: b.actual
-                })) as any);
-            }
-            if (goalData) setGoals(goalData as any);
             if (accData) {
                 setAccounts(accData.map(a => ({
                     id: a.id,
@@ -103,11 +100,42 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     color: a.color
                 })) as any);
             }
+
+            // Map Transactions IDs to Names for Frontend
+            if (transData) {
+                const mappedTransactions = transData.map((t: any) => {
+                    const cat = rawCategories.find((c: any) => c.id === t.category_id);
+                    const acc = rawAccounts.find((a: any) => a.id === t.account_id);
+
+                    return {
+                        id: t.id,
+                        description: t.description,
+                        amount: t.amount,
+                        date: t.date, // YYYY-MM-DD
+                        type: t.type,
+                        status: t.status,
+                        category: cat ? cat.name : 'Sem Categoria',
+                        account: acc ? acc.name : 'Sem Conta'
+                    };
+                });
+                console.log('Mapped Transactions:', mappedTransactions);
+                setTransactions(mappedTransactions);
+            }
+
+            if (budgetData) {
+                setBudgets(budgetData.map(b => ({
+                    categoryId: b.category_id,
+                    planned: b.planned,
+                    actual: b.actual
+                })) as any);
+            }
+            if (goalData) setGoals(goalData as any);
+
             if (cardData) {
                 setCards(cardData.map(c => ({
                     id: c.id,
-                    name: c.name,
                     brand: c.brand,
+                    name: c.name, // Correção: Mapear 'name' corretamente se existir no banco
                     lastDigits: c.last_digits,
                     limit: c.limit,
                     usedLimit: c.used_limit,
@@ -151,17 +179,84 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return null;
 
-        const { data, error } = await supabase.from('transactions').insert([{
-            ...item,
-            user_id: user.id
-        }]).select().single();
+        // 1. Resolve Category ID
+        let categoryId: string | null = null;
+        if (item.category) {
+            const normalizedCat = item.category.trim();
+            const existingCat = categories.find(c => c.name.toLowerCase() === normalizedCat.toLowerCase());
+
+            if (existingCat) {
+                categoryId = existingCat.id;
+            } else {
+                // Create new category strictly if needed, or default to "Outros" logic
+                // For now, let's create it to be safe and responsive
+                const { data: newCat } = await supabase.from('categories').insert({
+                    user_id: user.id,
+                    name: normalizedCat,
+                    icon: 'HelpCircle', // Default icon
+                    color: '#94a3b8' // Default slate color
+                }).select().single();
+                if (newCat) categoryId = newCat.id;
+            }
+        }
+
+        // 2. Resolve Account ID (optional but recommended if linked)
+        // item.account is string (name) based on types.ts
+        let accountId: string | null = null;
+        if (item.account) {
+            const normalizedAcc = item.account.trim();
+            const existingAcc = accounts.find(a => a.name.toLowerCase() === normalizedAcc.toLowerCase());
+            if (existingAcc) {
+                accountId = existingAcc.id;
+            }
+            // If not found, we could default to null or try to guess. Keep null if not strict.
+        }
+
+        // Prepare payload matching DB schema snake_case
+        // Ensure date is YYYY-MM-DD to match Postgres DATE type and avoid status casting issues
+        const formattedDate = new Date(item.date).toISOString().split('T')[0];
+
+        const payload: any = {
+            user_id: user.id,
+            description: item.description,
+            amount: item.amount,
+            type: item.type,
+            status: item.status || 'PAID', // Default to PAID
+            date: formattedDate,
+            category_id: categoryId,
+            account_id: accountId
+        };
+
+        // Remove undefined keys
+        Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
+
+        console.log('Sending Payload to Supabase:', payload); // Debug log
+
+        const { data, error } = await supabase.from('transactions').insert([payload]).select().single();
 
         if (error) {
-            console.error('Add Transaction error:', error);
+            console.error('Add Transaction error full:', error);
+            // ALERTA VISUAL PARA DEBUG
+            alert(`Erro ao salvar transação: ${error.message || JSON.stringify(error)}\nDetalhes: ${error.details || 'Sem detalhes'}`);
             return null;
         } else {
+            console.log('Transaction saved successfully:', data);
             await refreshData();
-            return data as Transaction;
+
+            // Map back to frontend Transaction type
+            const savedCat = categories.find(c => c.id === data.category_id);
+            const savedAcc = accounts.find(a => a.id === data.account_id);
+
+            return {
+                id: data.id,
+                description: data.description,
+                amount: data.amount,
+                date: data.date,
+                type: data.type,
+                status: data.status,
+                category: savedCat ? savedCat.name : (item.category || 'Sem Categoria'),
+                account: savedAcc ? savedAcc.name : (item.account || 'Sem Conta')
+            };
         }
     };
 
@@ -374,7 +469,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }]).select().single();
 
         if (error) {
-            console.error('Add Investment error:', error);
+            console.error('Add Investment error full:', error);
+            alert(`Erro ao salvar transação: ${error.message || JSON.stringify(error)}\nEste erro ocorreu no Localhost com as correções aplicadas.`);
             return null;
         } else {
             await refreshData();

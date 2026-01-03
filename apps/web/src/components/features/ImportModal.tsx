@@ -184,28 +184,131 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  /* Helper to read file content */
+  const readFileContent = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target?.result as string);
+      reader.onerror = (e) => reject(e);
+      reader.readAsText(file);
+    });
+  };
+
+  /* Helper to parse CSV manually */
+  const parseCSV = (content: string): TransactionInput[] => {
+    const lines = content.split(/\r?\n/).filter(line => line.trim() !== '');
+    if (lines.length === 0) return [];
+
+    // Try to identify header
+    const headers = lines[0].toLowerCase().split(/[;,]/);
+
+    // Check if it's OFX converted or standard banking CSV
+    // Simple heuristic: look for date, amount, description columns
+    const dateIdx = headers.findIndex(h => h.includes('data') || h.includes('date'));
+    const descIdx = headers.findIndex(h => h.includes('desc') || h.includes('historico') || h.includes('memo'));
+    const amountIdx = headers.findIndex(h => h.includes('valor') || h.includes('amount'));
+
+    const parsedData: TransactionInput[] = [];
+
+    // If headers found, skip first line
+    const startIdx = (dateIdx !== -1 && descIdx !== -1) ? 1 : 0;
+
+    for (let i = startIdx; i < lines.length; i++) {
+      // Split by comma or semicolon, handling quotes if possible (simplified here)
+      const cols = lines[i].split(/[;,]/);
+
+      if (cols.length < 3) continue;
+
+      // Extract values based on found indices or defaults (0, 1, 2)
+      let rawDate = (dateIdx !== -1 ? cols[dateIdx] : cols[0])?.trim();
+      let rawDesc = (descIdx !== -1 ? cols[descIdx] : cols[1])?.trim();
+      let rawAmount = (amountIdx !== -1 ? cols[amountIdx] : cols[2])?.trim();
+
+      // Basic cleanup
+      if (!rawDate || !rawAmount) continue;
+
+      // Parse Amount (handle R$, dots/commas)
+      // Remove currency symbols, fix decimal separator
+      let amountVal = parseFloat(rawAmount.replace(/[^0-9,-.]/g, '').replace(',', '.'));
+
+      // If amount is NaN, try swapping . and , (Brazilian format often 1.000,00)
+      if (isNaN(amountVal)) {
+        amountVal = parseFloat(rawAmount.replace(/\./g, '').replace(',', '.'));
+      }
+
+      parsedData.push({
+        id: `import-${Date.now()}-${i}`,
+        data: rawDate,
+        descricao: rawDesc.replace(/^"|"$/g, ''), // remove quotes
+        valor: Math.abs(amountVal), // Store absolute for categorization, handle sign logic if needed
+        banco: 'Importado'
+      });
+    }
+
+    return parsedData;
+  };
+
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
     try {
+      let allRawTransactions: TransactionInput[] = [];
+
+      // Process uploaded files
+      for (const file of files) {
+        if (file.name.toLowerCase().endsWith('.csv')) {
+          const content = await readFileContent(file);
+          const parsed = parseCSV(content);
+          allRawTransactions = [...allRawTransactions, ...parsed];
+        } else {
+          // TODO: Implement OFX parsing
+          console.warn('Formato não suportado ainda, usando mock para este arquivo:', file.name);
+          // Fallback to mock only if non-csv (or show error)
+          // For now, let's just alert
+          alert(`Formato .${file.name.split('.').pop()} ainda não implementado. Por favor use CSV.`);
+        }
+      }
+
+      if (allRawTransactions.length === 0 && files.length > 0 && files[0].name.endsWith('.csv')) {
+        // If CSV parsing failed to yield rows
+        throw new Error("Nenhuma transação encontrada no CSV. Verifique o formato.");
+      }
+
+      // If no files parsed (e.g. only OFX provided and skipped), fallback to mock ONLY if debugging or requested? 
+      // User requested "corrija", implies they want REAL data. 
+      // If allRawTransactions is empty but files exist, we should probably warn.
+
+      if (allRawTransactions.length === 0) {
+        // Fallback for demo purposes if nothing parsed, but warn user
+        console.log("Nenhuma transação parseada, impossível analisar.");
+        if (files.length === 0) {
+          // If no files, maybe use mock for demo (original behavior)?
+          // But user said "import area not working", so they uploaded files.
+          // Let's assume they want real data.
+          // However, to keep "demo" alive if they just click analyze without files (though button is disabled),
+          // we keep the mock logic ONLY if files are empty (which shouldn't happen due to disabled button).
+          allRawTransactions = MOCK_RAW_TRANSACTIONS;
+        }
+      }
+
       let mappedPreview: PreviewTransaction[] = [];
 
-      if (isFree) {
+      if (isFree && allRawTransactions.length > 0) {
         // Free Plan: Basic Import without AI
-        mappedPreview = MOCK_RAW_TRANSACTIONS.map(t => ({
+        mappedPreview = allRawTransactions.map(t => ({
           id: t.id,
           date: t.data,
           description: t.descricao,
           amount: t.valor,
           category: 'A CLASSIFICAR', // Manual categorization required
           subcategory: undefined,
-          type: 'EXPENSE',
+          type: 'EXPENSE', // Default to expense, user must adjust
           confidence: 'baixa'
         }));
         // Simulate processing delay
         await new Promise(resolve => setTimeout(resolve, 1000));
-      } else {
+      } else if (allRawTransactions.length > 0) {
         // Premium/Pro Plan: AI Categorization
-        const result = await categorizeTransactions(MOCK_RAW_TRANSACTIONS);
+        const result = await categorizeTransactions(allRawTransactions);
         mappedPreview = result.transacoes_categorizadas.map(t => ({
           id: t.id,
           date: t.data,
@@ -222,7 +325,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
       setStep('preview');
     } catch (error) {
       console.error("Falha na análise:", error);
-      alert("Houve um erro ao processar os arquivos.");
+      alert("Houve um erro ao processar os arquivos. Verifique se é um CSV válido.");
     } finally {
       setIsAnalyzing(false);
     }
