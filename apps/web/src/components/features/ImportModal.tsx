@@ -292,22 +292,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
 
       let mappedPreview: PreviewTransaction[] = [];
 
-      if (isFree && allRawTransactions.length > 0) {
-        // Free Plan: Basic Import without AI
-        mappedPreview = allRawTransactions.map(t => ({
-          id: t.id,
-          date: t.data,
-          description: t.descricao,
-          amount: t.valor,
-          category: 'A CLASSIFICAR', // Manual categorization required
-          subcategory: undefined,
-          type: 'EXPENSE', // Default to expense, user must adjust
-          confidence: 'baixa'
-        }));
-        // Simulate processing delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      } else if (allRawTransactions.length > 0) {
-        // Premium/Pro Plan: AI Categorization
+      if (allRawTransactions.length > 0) {
+        // AI Categorization for ALL users during testing/validation
         const result = await categorizeTransactions(allRawTransactions);
         mappedPreview = result.transacoes_categorizadas.map(t => ({
           id: t.id,
