@@ -23,6 +23,7 @@ import DevicesModal from '../features/DevicesModal';
 import RegionModal from '../features/RegionModal';
 import AIPreferencesModal from '../features/AIPreferencesModal';
 import ExportDataModal from '../features/ExportDataModal';
+import AdminAccessModal from '../features/AdminAccessModal';
 
 const SettingsPage: React.FC = () => {
   const { profile, loading, plan } = useSubscription();
@@ -32,6 +33,8 @@ const SettingsPage: React.FC = () => {
   const [isRegionModalOpen, setIsRegionModalOpen] = useState(false);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [adminClickCount, setAdminClickCount] = useState(0);
   const [user, setUser] = useState<{ email?: string; name?: string } | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem('fiflow_theme') === 'dark';
@@ -77,6 +80,17 @@ const SettingsPage: React.FC = () => {
     } else {
       setNotifications(prev => ({ ...prev, push: false }));
     }
+  };
+
+  const handleVersionClick = () => {
+    setAdminClickCount(prev => {
+      const newCount = prev + 1;
+      if (newCount === 5) {
+        setIsAdminModalOpen(true);
+        return 0;
+      }
+      return newCount;
+    });
   };
 
   const SettingItem = ({ icon: Icon, title, subtitle, action, onClick }: { icon: any, title: string, subtitle: string, action?: React.ReactNode, onClick?: () => void }) => (
@@ -249,7 +263,13 @@ const SettingsPage: React.FC = () => {
           <LogOut size={20} />
           Sair do FinanceFlow Pro
         </button>
-        <p className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-8">
+        <p
+          onClick={() => {
+            console.log('Version clicked!');
+            handleVersionClick();
+          }}
+          className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-8 cursor-pointer hover:text-indigo-400 transition-colors select-none"
+        >
           FinanceFlow Pro v2.1.0 • Built with Gemini AI
         </p>
       </section>
@@ -276,6 +296,10 @@ const SettingsPage: React.FC = () => {
       <ExportDataModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
+      />
+      <AdminAccessModal
+        isOpen={isAdminModalOpen}
+        onClose={() => setIsAdminModalOpen(false)}
       />
     </div>
   );
