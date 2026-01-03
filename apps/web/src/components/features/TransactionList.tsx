@@ -2,10 +2,13 @@ import React, { useState } from 'react';
 import { Filter, Download, MoreHorizontal, Edit2, Trash2, Search, ArrowUpDown, Loader2 } from 'lucide-react';
 import { CATEGORIES } from '../../constants';
 import { useFinance } from '../../contexts/FinanceContext';
+import TransactionModal from './TransactionModal';
 
 const TransactionList: React.FC = () => {
-    const { transactions = [], deleteTransaction } = useFinance();
+    const { transactions = [], deleteTransaction, updateTransaction } = useFinance();
     const [searchTerm, setSearchTerm] = useState('');
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [transactionToEdit, setTransactionToEdit] = useState<any>(null);
 
     const handleDelete = (id: string, description: string) => {
         if (window.confirm(`Tem certeza que deseja excluir o lançamento "${description}"?`)) {
@@ -13,9 +16,24 @@ const TransactionList: React.FC = () => {
         }
     };
 
-    const handleEdit = (id: string) => {
-        console.log(`Editando transação ${id}`);
-        alert(`Funcionalidade de Edição: Abrir modal para ID ${id}`);
+    const handleEdit = (transaction: any) => {
+        setTransactionToEdit(transaction);
+        setIsEditModalOpen(true);
+    };
+
+    const handleSaveEdit = async (updatedTransaction: any) => {
+        if (updateTransaction && updatedTransaction.id) {
+            await updateTransaction(updatedTransaction.id, {
+                description: updatedTransaction.description,
+                amount: updatedTransaction.amount,
+                date: updatedTransaction.date,
+                category: updatedTransaction.category,
+                type: updatedTransaction.type,
+                status: updatedTransaction.status
+            });
+        }
+        setIsEditModalOpen(false);
+        setTransactionToEdit(null);
     };
 
     const filteredTransactions = transactions.filter(t =>
@@ -107,7 +125,7 @@ const TransactionList: React.FC = () => {
                                     </td>
                                     <td className="px-8 py-6 text-center">
                                         <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                            <button onClick={() => handleEdit(t.id)} className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors" title="Editar"><Edit2 size={16} /></button>
+                                            <button onClick={() => handleEdit(t)} className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors" title="Editar"><Edit2 size={16} /></button>
                                             <button onClick={() => handleDelete(t.id, t.description)} className="p-2 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors" title="Excluir"><Trash2 size={16} /></button>
                                         </div>
                                     </td>
@@ -125,6 +143,13 @@ const TransactionList: React.FC = () => {
                     <button className="px-3 py-1 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100">Próxima</button>
                 </div>
             </div>
+
+            <TransactionModal
+                isOpen={isEditModalOpen}
+                onClose={() => setIsEditModalOpen(false)}
+                onSave={handleSaveEdit}
+                transactionToEdit={transactionToEdit}
+            />
         </div>
     );
 };
