@@ -9,7 +9,6 @@ interface SubscriptionContextData {
     isFree: boolean;
     isPremium: boolean;
     isPro: boolean;
-    isPro: boolean;
     refreshProfile: () => Promise<void>;
     updateProfile: (data: Partial<UserProfile>) => Promise<void>;
 }
@@ -95,7 +94,6 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
             plan,
             isFree,
             isPremium,
-            isPro,
             isPro,
             refreshProfile,
             updateProfile
