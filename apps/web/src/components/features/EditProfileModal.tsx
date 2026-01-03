@@ -11,12 +11,18 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose }) 
     const { profile, updateProfile } = useSubscription();
     const [fullName, setFullName] = useState('');
     const [avatarUrl, setAvatarUrl] = useState('');
+    const [cpf, setCpf] = useState('');
+    const [phone, setPhone] = useState('');
+    const [birthDate, setBirthDate] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         if (profile) {
             setFullName(profile.full_name || '');
             setAvatarUrl(profile.avatar_url || '');
+            setCpf(profile.cpf || '');
+            setPhone(profile.phone || '');
+            setBirthDate(profile.date_of_birth || '');
         }
     }, [profile, isOpen]);
 
@@ -28,7 +34,10 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose }) 
         try {
             await updateProfile({
                 full_name: fullName,
-                avatar_url: avatarUrl
+                avatar_url: avatarUrl,
+                cpf,
+                phone,
+                date_of_birth: birthDate
             });
             onClose();
         } catch (error) {
@@ -61,6 +70,39 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose }) 
                             />
                             <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                         </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-2">CPF</label>
+                            <input
+                                type="text"
+                                value={cpf}
+                                onChange={(e) => setCpf(e.target.value)}
+                                placeholder="000.000.000-00"
+                                className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-2">Data de Nasc.</label>
+                            <input
+                                type="date"
+                                value={birthDate}
+                                onChange={(e) => setBirthDate(e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">Telefone</label>
+                        <input
+                            type="tel"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            placeholder="(00) 00000-0000"
+                            className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium"
+                        />
                     </div>
 
                     <div>
