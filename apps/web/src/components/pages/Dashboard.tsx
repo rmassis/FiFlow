@@ -6,6 +6,8 @@ import {
 } from 'recharts';
 import { TrendingUp, TrendingDown, DollarSign, Wallet, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
 import { useFinance } from '../../contexts/FinanceContext';
+import AiInsightsWidget from '../features/AiInsightsWidget';
+import { generateDashboardInsights } from '../../services/aiAutopilotService';
 
 const Dashboard: React.FC = () => {
   const {
@@ -33,14 +35,48 @@ const Dashboard: React.FC = () => {
   const prevMonthTotalIncome = totalIncome * 0.9;
   const prevMonthTotalExpenses = totalExpenses * 0.95;
 
-  const chartData = [
-    { name: 'Jan', income: totalIncome * 0.8, expenses: totalExpenses * 0.9 },
-    { name: 'Fev', income: totalIncome * 0.9, expenses: totalExpenses * 0.8 },
-    { name: 'Mar', income: totalIncome * 1.1, expenses: totalExpenses * 1.2 },
-    { name: 'Abr', income: totalIncome * 1.0, expenses: totalExpenses * 1.0 },
-    { name: 'Mai', income: totalIncome * 0.95, expenses: totalExpenses * 0.9 },
-    { name: 'Jun', income: totalIncome, expenses: totalExpenses },
-  ];
+  /* State for filters */
+  const [period, setPeriod] = React.useState('6m'); // '6m' or 'year'
+
+  // Generate Real Chart Data
+  const chartData = React.useMemo(() => {
+    const data: Record<string, { income: number; expenses: number }> = {};
+    const now = new Date();
+    const months = period === '6m' ? 6 : 12;
+
+    // Initialize last X months
+    for (let i = months - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = d.toLocaleString('pt-BR', { month: 'short' });
+      data[key] = { income: 0, expenses: 0 };
+    }
+
+    // Aggregate transactions
+    transactions.forEach(t => {
+      const d = new Date(t.date);
+      // Filter by period logic could be stricter here, but let's just map to months for now
+      // Ideally check if date is within range
+      const diffMonths = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+      if (diffMonths < months && diffMonths >= 0) {
+        const key = d.toLocaleString('pt-BR', { month: 'short' });
+        if (data[key]) {
+          if (t.type === 'INCOME') data[key].income += t.amount;
+          if (t.type === 'EXPENSE') data[key].expenses += t.amount;
+        }
+      }
+    });
+
+    return Object.keys(data).map(key => ({
+      name: key,
+      income: data[key].income,
+      expenses: data[key].expenses
+    }));
+  }, [transactions, period]);
+
+  // Generate Insights
+  const insights = React.useMemo(() => {
+    return generateDashboardInsights(transactions, budgets, categories);
+  }, [transactions, budgets, categories]);
 
   const pieData = budgets.map(b => {
     const cat = categories.find(c => b.categoryId === c.id);
@@ -157,11 +193,15 @@ const Dashboard: React.FC = () => {
           <div className="flex items-center justify-between mb-8">
             <div>
               <h3 className="text-xl font-bold text-slate-800 dark:text-white">Fluxo de Caixa</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Entradas e saídas dos últimos 6 meses</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Entradas e saídas ({period === '6m' ? 'Últimos 6 meses' : 'Este Ano'})</p>
             </div>
-            <select className="bg-slate-50 dark:bg-slate-800 border-none text-sm font-medium rounded-xl px-4 py-2 text-slate-600 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
-              <option>Últimos 6 meses</option>
-              <option>2025 COMPLETO</option>
+            <select
+              value={period}
+              onChange={(e) => setPeriod(e.target.value)}
+              className="bg-slate-50 dark:bg-slate-800 border-none text-sm font-medium rounded-xl px-4 py-2 text-slate-600 dark:text-slate-300 focus:ring-2 focus:ring-indigo-500 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <option value="6m">Últimos 6 meses</option>
+              <option value="year">12 Meses</option>
             </select>
           </div>
           <div className="h-[320px]">
@@ -226,10 +266,23 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Categories Breakdown */}
-        <div className="glass-panel p-8 rounded-3xl shadow-sm flex flex-col">
+      </div>
+
+      {/* AI Insights and Categories */}
+      <div className="glass-panel p-8 rounded-3xl shadow-sm flex flex-col gap-6">
+
+        {/* AI Widget */}
+        <div className="h-[200px]">
+          <AiInsightsWidget insights={insights as any} />
+        </div>
+
+        <div className="h-px bg-slate-100 dark:bg-slate-800"></div>
+
+        <div>
           <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-1">Gastos</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Distribuição por categoria</p>
 
+          {/* ... existing chart code ... */}
           <div className="h-[220px] relative">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -283,6 +336,7 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
     </div>
+    </div >
   );
 };
 

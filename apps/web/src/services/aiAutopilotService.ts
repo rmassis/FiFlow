@@ -8,23 +8,23 @@ const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || '' }
 const MODEL_NAME = "gemini-2.0-flash-exp";
 
 export interface AutopilotResponse {
-    message: string;
-    action?: {
-        type: 'CREATE_BUDGET' | 'CREATE_GOAL' | 'ADD_TRANSACTION' | 'QUERY_INSIGHT' | 'ALERT_ANOMALY';
-        payload: any;
-    };
-    insight?: {
-        type: 'ANOMALY' | 'BUDGET_WARNING' | 'POSITIVE_PATTERN';
-        severity?: 'LOW' | 'MEDIUM' | 'HIGH';
-        details: string;
-        impact?: string;
-    };
-    clarification?: {
-        missing?: string[];
-        reason?: string;
-        suggestion?: string;
-    };
-    confidence: number;
+  message: string;
+  action?: {
+    type: 'CREATE_BUDGET' | 'CREATE_GOAL' | 'ADD_TRANSACTION' | 'QUERY_INSIGHT' | 'ALERT_ANOMALY';
+    payload: any;
+  };
+  insight?: {
+    type: 'ANOMALY' | 'BUDGET_WARNING' | 'POSITIVE_PATTERN';
+    severity?: 'LOW' | 'MEDIUM' | 'HIGH';
+    details: string;
+    impact?: string;
+  };
+  clarification?: {
+    missing?: string[];
+    reason?: string;
+    suggestion?: string;
+  };
+  confidence: number;
 }
 
 const SYSTEM_PROMPT = `
@@ -295,106 +295,180 @@ O contexto será fornecido com:
 `;
 
 export const processUserCommand = async (
-    userInput: string,
-    context: {
-        transactions: Transaction[],
-        budgets: Budget[],
-        categories: Category[],
-        goals: Goal[]
-    }
+  userInput: string,
+  context: {
+    transactions: Transaction[],
+    budgets: Budget[],
+    categories: Category[],
+    goals: Goal[]
+  }
 ): Promise<AutopilotResponse> => {
-    try {
-        // Build rich context with statistics
-        const categoryNames = context.categories.map(c => c.name);
+  try {
+    // Build rich context with statistics
+    const categoryNames = context.categories.map(c => c.name);
 
-        // Calculate spending by category (last 30 days)
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // Calculate spending by category (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-        const recentTransactions = context.transactions.filter(t =>
-            new Date(t.date) >= thirtyDaysAgo
-        );
+    const recentTransactions = context.transactions.filter(t =>
+      new Date(t.date) >= thirtyDaysAgo
+    );
 
-        const spendingByCategory = categoryNames.reduce((acc, cat) => {
-            const categoryTransactions = recentTransactions.filter(t =>
-                t.category === cat && t.type === 'expense'
-            );
-            const total = categoryTransactions.reduce((sum, t) => sum + t.amount, 0);
-            const average = categoryTransactions.length > 0 ? total / categoryTransactions.length : 0;
+    const spendingByCategory = categoryNames.reduce((acc, cat) => {
+      const categoryTransactions = recentTransactions.filter(t =>
+        t.category === cat && t.type === 'expense'
+      );
+      const total = categoryTransactions.reduce((sum, t) => sum + t.amount, 0);
+      const average = categoryTransactions.length > 0 ? total / categoryTransactions.length : 0;
 
-            acc[cat] = {
-                total,
-                average,
-                count: categoryTransactions.length
-            };
-            return acc;
-        }, {} as Record<string, { total: number, average: number, count: number }>);
+      acc[cat] = {
+        total,
+        average,
+        count: categoryTransactions.length
+      };
+      return acc;
+    }, {} as Record<string, { total: number, average: number, count: number }>);
 
-        // Build budget status
-        const budgetStatus = context.budgets.map(b => ({
-            category: b.category,
-            limit: b.amount,
-            spent: spendingByCategory[b.category]?.total || 0,
-            percentage: ((spendingByCategory[b.category]?.total || 0) / b.amount) * 100
-        }));
+    // Build budget status
+    const budgetStatus = context.budgets.map(b => ({
+      category: b.category,
+      limit: b.amount,
+      spent: spendingByCategory[b.category]?.total || 0,
+      percentage: ((spendingByCategory[b.category]?.total || 0) / b.amount) * 100
+    }));
 
-        const contextData = {
-            user_input: userInput,
-            context: {
-                categories: categoryNames,
-                budgets: budgetStatus,
-                spending_last_30_days: spendingByCategory,
-                active_goals: context.goals.map(g => ({
-                    name: g.name,
-                    target: g.targetAmount,
-                    current: g.currentAmount,
-                    deadline: g.deadline,
-                    progress: (g.currentAmount / g.targetAmount) * 100
-                })),
-                total_transactions: context.transactions.length,
-                current_date: new Date().toISOString().split('T')[0]
-            }
-        };
+    const contextData = {
+      user_input: userInput,
+      context: {
+        categories: categoryNames,
+        budgets: budgetStatus,
+        spending_last_30_days: spendingByCategory,
+        active_goals: context.goals.map(g => ({
+          name: g.name,
+          target: g.targetAmount,
+          current: g.currentAmount,
+          deadline: g.deadline,
+          progress: (g.currentAmount / g.targetAmount) * 100
+        })),
+        total_transactions: context.transactions.length,
+        current_date: new Date().toISOString().split('T')[0]
+      }
+    };
 
-        const response = await ai.models.generateContent({
-            model: MODEL_NAME,
-            contents: JSON.stringify(contextData),
-            config: {
-                systemInstruction: SYSTEM_PROMPT,
-                temperature: 0.3, // Lower temperature for more deterministic responses
-                responseMimeType: "application/json"
-            },
-        });
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: JSON.stringify(contextData),
+      config: {
+        systemInstruction: SYSTEM_PROMPT,
+        temperature: 0.3, // Lower temperature for more deterministic responses
+        responseMimeType: "application/json"
+      },
+    });
 
-        const textResponse = response.text || "{}";
+    const textResponse = response.text || "{}";
 
-        // Remove markdown code blocks if present (extra safety)
-        const cleanedResponse = textResponse
-            .replace(/```json\n?/g, '')
-            .replace(/```\n?/g, '')
-            .trim();
+    // Remove markdown code blocks if present (extra safety)
+    const cleanedResponse = textResponse
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim();
 
-        const parsed = JSON.parse(cleanedResponse);
+    const parsed = JSON.parse(cleanedResponse);
 
-        // Validate response structure
-        if (!parsed.message || typeof parsed.confidence !== 'number') {
-            throw new Error('Invalid response structure from AI');
-        }
-
-        // Ensure confidence is between 0 and 1
-        parsed.confidence = Math.max(0, Math.min(1, parsed.confidence));
-
-        return parsed as AutopilotResponse;
-
-    } catch (error) {
-        console.error("Autopilot Error:", error);
-        return {
-            message: "Desculpe, tive um problema ao processar seu comando. Tente novamente.",
-            confidence: 0.0,
-            clarification: {
-                reason: "Erro interno no processamento",
-                suggestion: "Tente reformular sua mensagem de forma mais clara"
-            }
-        };
+    // Validate response structure
+    if (!parsed.message || typeof parsed.confidence !== 'number') {
+      throw new Error('Invalid response structure from AI');
     }
+
+    // Ensure confidence is between 0 and 1
+    parsed.confidence = Math.max(0, Math.min(1, parsed.confidence));
+
+    return parsed as AutopilotResponse;
+
+  } catch (error) {
+    console.error("Autopilot Error:", error);
+    return {
+      message: "Desculpe, tive um problema ao processar seu comando. Tente novamente.",
+      confidence: 0.0,
+      clarification: {
+        reason: "Erro interno no processamento",
+        suggestion: "Tente reformular sua mensagem de forma mais clara"
+      }
+    };
+  }
+};
+
+export const generateDashboardInsights = (
+  transactions: Transaction[],
+  budgets: Budget[],
+  categories: Category[]
+): { type: any, message: string, severity: any }[] => {
+  const insights: { type: any, message: string, severity: any }[] = [];
+  const now = new Date();
+  const currentMonth = now.getMonth();
+
+  // 1. Budget Warnings
+  budgets.forEach(budget => {
+    const catName = categories.find(c => c.id === budget.categoryId)?.name;
+    if (!catName) return;
+
+    const spent = transactions
+      .filter(t =>
+        t.categoryId === budget.categoryId &&
+        t.type === 'EXPENSE' &&
+        new Date(t.date).getMonth() === currentMonth
+      )
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    const percentage = (spent / budget.planned) * 100;
+
+    if (percentage >= 100) {
+      insights.push({
+        type: 'BUDGET_WARNING',
+        message: `Você excedeu o orçamento de ${catName} em ${Math.round(percentage - 100)}%.`,
+        severity: 'HIGH'
+      });
+    } else if (percentage >= 80) {
+      insights.push({
+        type: 'BUDGET_WARNING',
+        message: `Cuidado: Você já usou ${Math.round(percentage)}% do orçamento de ${catName}.`,
+        severity: 'MEDIUM'
+      });
+    }
+  });
+
+  // 2. Anomalies (High value transactions recently)
+  const recentHighTransactions = transactions
+    .filter(t => {
+      const date = new Date(t.date);
+      const isRecent = (now.getTime() - date.getTime()) / (1000 * 3600 * 24) < 3; // last 3 days
+      return isRecent && t.type === 'EXPENSE' && t.amount > 500; // Threshold arbitrary for example
+    });
+
+  recentHighTransactions.forEach(t => {
+    insights.push({
+      type: 'ANOMALY',
+      message: `Gasto alto detectado: R$ ${t.amount.toLocaleString('pt-BR')} em ${t.description}.`,
+      severity: 'MEDIUM'
+    });
+  });
+
+  // 3. Positive Patterns (Income > Expenses this month)
+  const thisMonthTransactions = transactions.filter(t => new Date(t.date).getMonth() === currentMonth);
+  const income = thisMonthTransactions.filter(t => t.type === 'INCOME').reduce((s, t) => s + t.amount, 0);
+  const expense = thisMonthTransactions.filter(t => t.type === 'EXPENSE').reduce((s, t) => s + t.amount, 0);
+
+  if (income > expense && income > 0) {
+    const savingsRatio = ((income - expense) / income) * 100;
+    if (savingsRatio > 20) {
+      insights.push({
+        type: 'POSITIVE_PATTERN',
+        message: `Parabéns! Você está economizando ${Math.round(savingsRatio)}% da sua renda este mês.`,
+        severity: 'LOW'
+      });
+    }
+  }
+
+  return insights;
 };
