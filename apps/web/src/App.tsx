@@ -202,9 +202,21 @@ const AppContent: React.FC<{ session: Session }> = ({ session }) => {
       <ImportModal
         isOpen={isImportOpen}
         onClose={() => setIsImportOpen(false)}
-        onSave={addTransaction}
-        categories={categories}
-        accounts={accounts}
+        onImport={(importedTransactions, accountId) => {
+          const targetAccount = accounts.find(a => a.id === accountId);
+          importedTransactions.forEach(t => {
+            addTransaction({
+              date: t.date,
+              description: t.description, // Added description
+              amount: t.amount,
+              category: t.category,
+              type: t.type,
+              status: 'PAID',
+              account: targetAccount?.name || 'Importado'
+            });
+          });
+          setIsImportOpen(false);
+        }}
       />
 
       <UpdatePasswordModal

@@ -135,8 +135,8 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isOpen, onClose }) 
                     key={goal.id}
                     onClick={() => setSelectedGoal(goal.id)}
                     className={`flex items - center gap - 4 p - 4 rounded - 2xl border - 2 text - left transition - all ${selectedGoal === goal.id
-                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10'
-                        : 'border-slate-100 dark:border-slate-700 hover:border-indigo-200 dark:hover:border-slate-600 bg-white dark:bg-slate-800/50'
+                      ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10'
+                      : 'border-slate-100 dark:border-slate-700 hover:border-indigo-200 dark:hover:border-slate-600 bg-white dark:bg-slate-800/50'
                       } `}
                   >
                     <div className={`p - 3 rounded - xl ${selectedGoal === goal.id ? 'bg-indigo-500 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'} `}>
@@ -164,8 +164,8 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isOpen, onClose }) 
                 <button
                   onClick={() => setAccountType('CHECKING')}
                   className={`flex - 1 py - 2 px - 4 rounded - lg text - sm font - semibold transition - all flex items - center justify - center gap - 2 ${accountType === 'CHECKING'
-                      ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-white shadow-sm'
-                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
+                    ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-white shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
                     } `}
                 >
                   <Building2 size={16} />
@@ -174,11 +174,11 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isOpen, onClose }) 
                 <button
                   onClick={() => setAccountType('CREDIT')}
                   className={`flex - 1 py - 2 px - 4 rounded - lg text - sm font - semibold transition - all flex items - center justify - center gap - 2 ${accountType === 'CREDIT'
-                      ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-white shadow-sm'
-                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
+                    ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-white shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
                     } `}
                 >
-                  <CreditCard size={16} />
+                  <CardIcon size={16} />
                   Cartão de Crédito
                 </button>
               </div>
@@ -192,8 +192,8 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isOpen, onClose }) 
                         key={b.id}
                         onClick={() => setAccountData({ ...accountData, bank: b.name })}
                         className={`p - 2 rounded - xl border text - xs font - medium transition - all flex flex - col items - center gap - 2 text - center h - [80px] justify - center ${accountData.bank === b.name
-                            ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300'
-                            : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                          ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300'
+                          : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                           } `}
                       >
                         <div className="w-8 h-8 rounded-full shadow-sm shrink-0 flex items-center justify-center text-white font-bold text-[10px]" style={{ backgroundColor: b.color }}>
