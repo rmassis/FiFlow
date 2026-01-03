@@ -1,6 +1,84 @@
-/* Tailwind is loaded via CDN in index.html */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
+:root {
+  /* Brand Colors - Indigo/Violet Gradient base */
+  --pk-brand-primary: #6366f1; /* Indigo 500 */
+  --pk-brand-secondary: #8b5cf6; /* Violet 500 */
+  --pk-brand-accent: #f43f5e; /* Rose 500 */
+
+  /* Semantic Colors for Light Theme */
+  --pk-bg-root: #f8fafc; /* Slate 50 */
+  --pk-bg-surface: #ffffff;
+  --pk-text-primary: #0f172a; /* Slate 900 */
+  --pk-text-secondary: #64748b; /* Slate 500 */
+  --pk-border-subtle: #e2e8f0; /* Slate 200 */
+  
+  /* Status Colors */
+  --pk-success: #10b981; /* Emerald 500 */
+  --pk-warning: #f59e0b; /* Amber 500 */
+  --pk-danger: #ef4444; /* Red 500 */
+
+  /* Glassmorphism Variables */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+}
+
+.dark {
+  /* Semantic Colors for Dark Theme */
+  --pk-bg-root: #0f172a; /* Slate 900 */
+  --pk-bg-surface: #1e293b; /* Slate 800 */
+  --pk-text-primary: #f8fafc; /* Slate 50 */
+  --pk-text-secondary: #94a3b8; /* Slate 400 */
+  --pk-border-subtle: #334155; /* Slate 700 */
+
+  /* Glassmorphism Variables Dark */
+  --glass-bg: rgba(30, 41, 59, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
 
 body {
     font-family: 'Inter', sans-serif;
+    background-color: var(--pk-bg-root);
+    color: var(--pk-text-primary);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Glassmorphism Utilities */
+.glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: var(--pk-text-secondary);
+    border-radius: 3px;
+    opacity: 0.5;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--pk-brand-primary);
+}
+
+/* Animations */
+@keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+    100% { transform: translateY(0px); }
+}
+.animate-float {
+    animation: float 6s ease-in-out infinite;
 }
