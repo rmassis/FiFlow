@@ -9,7 +9,9 @@ interface SubscriptionContextData {
     isFree: boolean;
     isPremium: boolean;
     isPro: boolean;
+    isPro: boolean;
     refreshProfile: () => Promise<void>;
+    updateProfile: (data: Partial<UserProfile>) => Promise<void>;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextData>({} as SubscriptionContextData);
@@ -47,6 +49,24 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
     };
 
+    const updateProfile = async (updates: Partial<UserProfile>) => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            const { error } = await supabase
+                .from('profiles')
+                .update(updates)
+                .eq('id', user.id);
+
+            if (error) throw error;
+            await refreshProfile();
+        } catch (error) {
+            console.error('Error updating profile:', error);
+            throw error;
+        }
+    };
+
     useEffect(() => {
         refreshProfile();
 
@@ -70,7 +90,9 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
             isFree,
             isPremium,
             isPro,
-            refreshProfile
+            isPro,
+            refreshProfile,
+            updateProfile
         }}>
             {children}
         </SubscriptionContext.Provider>

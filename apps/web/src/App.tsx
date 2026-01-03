@@ -40,7 +40,7 @@ const AppContent: React.FC<{ session: Session }> = ({ session }) => {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Usar hook para manipulação
+  const { profile, loading: subLoading, plan } = useSubscription();
   const { addTransaction, categories, transactions, accounts } = useFinance();
 
   const menuItems = [
@@ -56,10 +56,12 @@ const AppContent: React.FC<{ session: Session }> = ({ session }) => {
   ];
 
   const userProfile = {
-    name: session?.user?.email?.split('@')[0] || 'Usuário',
-    plan: 'Plano Beta',
-    avatarUrl: `https://ui-avatars.com/api/?name=${session?.user?.email || 'U'}&background=6366f1&color=fff`
+    name: profile?.full_name || session?.user?.email?.split('@')[0] || 'Usuário',
+    plan: `Plano ${plan}`,
+    avatarUrl: profile?.avatar_url || `https://ui-avatars.com/api/?name=${session?.user?.email || 'U'}&background=6366f1&color=fff`
   };
+
+  const firstName = userProfile.name.split(' ')[0];
 
   const renderContent = () => {
     switch (activeTab) {
@@ -108,7 +110,7 @@ const AppContent: React.FC<{ session: Session }> = ({ session }) => {
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
           <div>
             <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-              Olá, {userProfile.name} 👋
+              Olá, {firstName} 👋
             </h1>
             <p className="text-slate-500 font-medium whitespace-capitalize">
               Aqui está o resumo financeiro de {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
