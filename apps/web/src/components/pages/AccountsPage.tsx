@@ -12,7 +12,7 @@ import {
   PiggyBank,
   Briefcase,
   ChevronRight,
-  ChevronRight,
+
   TrendingUp,
   X,
   Check
