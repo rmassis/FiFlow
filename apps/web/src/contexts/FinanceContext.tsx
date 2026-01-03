@@ -171,6 +171,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         else refreshData();
     };
 
+    const updateTransaction = async (id: string, updated: Partial<Transaction>) => {
+        const { error } = await supabase.from('transactions').update(updated).eq('id', id);
+        if (error) console.error('Update Transaction error:', error);
+        else refreshData();
+    };
+
     const deleteTransaction = async (id: string) => {
         const { error } = await supabase.from('transactions').delete().eq('id', id);
         if (error) console.error('Delete Transaction error:', error);

@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Filter, Download, MoreHorizontal, Edit2, Trash2, Search, ArrowUpDown, Loader2 } from 'lucide-react';
+import { Filter, Download, Plus, Edit2, Trash2, Search, ArrowUpDown } from 'lucide-react';
 import { CATEGORIES } from '../../constants';
 import { useFinance } from '../../contexts/FinanceContext';
 import TransactionModal from './TransactionModal';
 
 const TransactionList: React.FC = () => {
-    const { transactions = [], deleteTransaction, updateTransaction } = useFinance();
+    const { transactions = [], deleteTransaction, updateTransaction, addTransaction } = useFinance();
     const [searchTerm, setSearchTerm] = useState('');
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [transactionToEdit, setTransactionToEdit] = useState<any>(null);
@@ -21,16 +21,16 @@ const TransactionList: React.FC = () => {
         setIsEditModalOpen(true);
     };
 
-    const handleSaveEdit = async (updatedTransaction: any) => {
-        if (updateTransaction && updatedTransaction.id) {
-            await updateTransaction(updatedTransaction.id, {
-                description: updatedTransaction.description,
-                amount: updatedTransaction.amount,
-                date: updatedTransaction.date,
-                category: updatedTransaction.category,
-                type: updatedTransaction.type,
-                status: updatedTransaction.status
-            });
+    const handleCreate = () => {
+        setTransactionToEdit(null);
+        setIsEditModalOpen(true);
+    };
+
+    const handleSaveEdit = async (transaction: any) => {
+        if (transaction.id && updateTransaction) {
+            await updateTransaction(transaction.id, transaction);
+        } else if (addTransaction) {
+            await addTransaction(transaction);
         }
         setIsEditModalOpen(false);
         setTransactionToEdit(null);
@@ -63,9 +63,15 @@ const TransactionList: React.FC = () => {
                         <Filter size={16} />
                         <span className="hidden sm:inline">Filtros</span>
                     </button>
-                    <button className="flex items-center gap-2 px-4 py-2.5 bg-indigo-50 text-indigo-700 font-bold text-sm rounded-xl hover:bg-indigo-100 transition-colors">
                         <Download size={16} />
                         <span className="hidden sm:inline">Exportar</span>
+                    </button>
+                    <button 
+                        onClick={handleCreate}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white font-bold text-sm rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
+                    >
+                        <Plus size={16} />
+                        <span className="hidden sm:inline">Novo</span>
                     </button>
                 </div>
             </div>
@@ -150,7 +156,7 @@ const TransactionList: React.FC = () => {
                 onSave={handleSaveEdit}
                 transactionToEdit={transactionToEdit}
             />
-        </div>
+        </div >
     );
 };
 
