@@ -195,7 +195,10 @@ const SettingsPage: React.FC = () => {
             icon={Database}
             title="Backup e Dados"
             subtitle="Sincronização automática com a nuvem"
-            onClick={() => setIsExportModalOpen(true)}
+            onClick={() => {
+              console.log('Opening Export Modal');
+              setIsExportModalOpen(true);
+            }}
             action={
               <div className="flex items-center gap-2 text-emerald-600">
                 <Cloud size={16} />
