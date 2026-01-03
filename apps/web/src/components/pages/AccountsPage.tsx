@@ -296,6 +296,7 @@ const AccountsPage: React.FC = () => {
     )
   }
     </>
+  );
 };
 
 export default AccountsPage;
