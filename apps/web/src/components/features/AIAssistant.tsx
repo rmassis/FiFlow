@@ -7,7 +7,7 @@ import { useSubscription } from '../../contexts/SubscriptionContext';
 import { ChatMessage } from '../../types';
 
 const AIAssistant: React.FC = () => {
-  const { transactions = [], budgets = [], goals = [], categories = [], addBudget, addGoal, addTransaction } = useFinance();
+  const { transactions = [], budgets = [], goals = [], categories = [], updateBudget, addGoal, addTransaction } = useFinance();
   const { isFree } = useSubscription();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -30,8 +30,8 @@ const AIAssistant: React.FC = () => {
           // Find category ID by name
           const catName = action.payload.category;
           const category = categories.find(c => c.name.toLowerCase() === catName.toLowerCase());
-          if (category && addBudget) {
-            await addBudget(category.id, action.payload.amount);
+          if (category && updateBudget) {
+            await updateBudget(category.id, action.payload.amount);
             return true;
           }
           return false;
@@ -39,11 +39,9 @@ const AIAssistant: React.FC = () => {
           if (addGoal) {
             await addGoal({
               name: action.payload.name,
-              targetAmount: action.payload.targetAmount,
-              currentAmount: 0,
+              target: action.payload.targetAmount,
+              current: 0,
               deadline: action.payload.deadline || new Date().toISOString(),
-              color: '#6366f1',
-              icon: 'Target'
             });
             return true;
           }
