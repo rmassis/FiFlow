@@ -35,13 +35,14 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose }) 
             await updateProfile({
                 full_name: fullName,
                 avatar_url: avatarUrl,
-                cpf,
-                phone,
-                date_of_birth: birthDate
+                cpf: cpf || undefined,
+                phone: phone || undefined,
+                date_of_birth: birthDate ? birthDate : undefined
             });
             onClose();
         } catch (error) {
-            alert('Erro ao atualizar perfil.');
+            console.error(error);
+            alert('Erro ao atualizar perfil. Verifique os dados e tente novamente.');
         } finally {
             setIsLoading(false);
         }
