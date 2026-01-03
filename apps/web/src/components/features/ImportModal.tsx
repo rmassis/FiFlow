@@ -294,17 +294,29 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
 
       if (allRawTransactions.length > 0) {
         // AI Categorization for ALL users during testing/validation
+        console.log("Chamando categorização IA...", allRawTransactions.length);
         const result = await categorizeTransactions(allRawTransactions);
-        mappedPreview = result.transacoes_categorizadas.map(t => ({
-          id: t.id,
-          date: t.data,
-          description: t.descricao,
-          amount: t.valor,
-          category: t.categoria_principal,
-          subcategory: t.classificacao,
-          type: t.categoria_principal.includes('RECEITAS') || t.categoria_principal.includes('Salário') ? 'INCOME' : 'EXPENSE',
-          confidence: t.confianca
-        }));
+        console.log("Resultado IA:", result);
+
+        mappedPreview = result.transacoes_categorizadas.map(t => {
+          let finalCategory = t.categoria_principal;
+
+          // Safety check: if AI returns "A CLASSIFICAR" (hallucination) or null, fix it
+          if (!finalCategory || finalCategory === 'A CLASSIFICAR' || finalCategory === 'OUTROS - Erro') {
+            finalCategory = 'OUTROS';
+          }
+
+          return {
+            id: t.id,
+            date: t.data,
+            description: t.descricao,
+            amount: t.valor,
+            category: finalCategory,
+            subcategory: t.classificacao,
+            type: finalCategory.includes('RECEITAS') || finalCategory.includes('Salário') ? 'INCOME' : 'EXPENSE',
+            confidence: t.confianca
+          };
+        });
       }
 
       setPreviewData(mappedPreview);
