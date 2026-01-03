@@ -1,18 +1,32 @@
 import React, { useState } from 'react';
-import { Filter, Download, Plus, Edit2, Trash2, Search, ArrowUpDown } from 'lucide-react';
-import { CATEGORIES } from '../../constants';
+import { Filter, Download, Plus, Edit2, Trash2, Search, ArrowUpDown, X, CheckSquare } from 'lucide-react';
 import { useFinance } from '../../contexts/FinanceContext';
 import TransactionModal from './TransactionModal';
 
 const TransactionList: React.FC = () => {
-    const { transactions = [], deleteTransaction, updateTransaction, addTransaction } = useFinance();
+    const { transactions = [], deleteTransaction, deleteTransactions, updateTransaction, addTransaction } = useFinance();
     const [searchTerm, setSearchTerm] = useState('');
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [transactionToEdit, setTransactionToEdit] = useState<any>(null);
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+    const filteredTransactions = transactions.filter(t =>
+        t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        t.category.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
     const handleDelete = (id: string, description: string) => {
         if (window.confirm(`Tem certeza que deseja excluir o lançamento "${description}"?`)) {
             deleteTransaction(id);
+        }
+    };
+
+    const handleBulkDelete = () => {
+        if (window.confirm(`Tem certeza que deseja excluir ${selectedIds.length} lançamentos selecionados? Esta ação não pode ser desfeita.`)) {
+            if (deleteTransactions) {
+                deleteTransactions(selectedIds);
+                setSelectedIds([]);
+            }
         }
     };
 
@@ -36,13 +50,51 @@ const TransactionList: React.FC = () => {
         setTransactionToEdit(null);
     };
 
-    const filteredTransactions = transactions.filter(t =>
-        t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.category.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const toggleSelection = (id: string) => {
+        setSelectedIds(prev =>
+            prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+        );
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedIds.length === filteredTransactions.length) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(filteredTransactions.map(t => t.id));
+        }
+    };
 
     return (
-        <div className="bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden">
+        <div className="bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden relative">
+
+            {/* Bulk Action Bar - Shows when items are selected */}
+            {selectedIds.length > 0 && (
+                <div className="absolute top-0 left-0 right-0 z-10 bg-indigo-600 text-white p-4 flex items-center justify-between animate-in slide-in-from-top-2 duration-200">
+                    <div className="flex items-center gap-4 px-4">
+                        <span className="font-bold flex items-center gap-2">
+                            <CheckSquare size={20} />
+                            {selectedIds.length} selecionado(s)
+                        </span>
+                        <div className="h-6 w-px bg-indigo-400"></div>
+                        <button
+                            onClick={() => setSelectedIds([])}
+                            className="text-indigo-200 hover:text-white text-sm font-medium transition-colors"
+                        >
+                            Cancelar seleção
+                        </button>
+                    </div>
+                    <div className="flex items-center gap-2 px-4">
+                        <button
+                            onClick={handleBulkDelete}
+                            className="flex items-center gap-2 px-4 py-2 bg-white text-rose-600 font-bold rounded-xl hover:bg-rose-50 transition-colors shadow-sm"
+                        >
+                            <Trash2 size={16} />
+                            Excluir {selectedIds.length} itens
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div className="p-8 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h2 className="text-xl font-bold text-slate-800">Lançamentos</h2>
@@ -81,48 +133,69 @@ const TransactionList: React.FC = () => {
                 <table className="w-full text-left">
                     <thead className="bg-white border-b border-slate-100">
                         <tr>
-                            <th className="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest hover:text-indigo-600 cursor-pointer transition-colors group">
+                            <th className="px-5 py-6 w-10">
+                                <div className="flex items-center justify-center">
+                                    <input
+                                        type="checkbox"
+                                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                        checked={filteredTransactions.length > 0 && selectedIds.length === filteredTransactions.length}
+                                        onChange={toggleSelectAll}
+                                    />
+                                </div>
+                            </th>
+                            <th className="px-5 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest hover:text-indigo-600 cursor-pointer transition-colors group">
                                 <div className="flex items-center gap-1">
                                     Dados
                                     <ArrowUpDown size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                                 </div>
                             </th>
-                            <th className="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Descrição</th>
-                            <th className="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Categoria</th>
-                            <th className="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-right">Valor</th>
-                            <th className="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Status</th>
-                            <th className="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Ações</th>
+                            <th className="px-5 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Descrição</th>
+                            <th className="px-5 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Categoria</th>
+                            <th className="px-5 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-right">Valor</th>
+                            <th className="px-5 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Status</th>
+                            <th className="px-5 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Ações</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                         {filteredTransactions.length === 0 ? (
                             <tr>
-                                <td colSpan={6} className="px-8 py-12 text-center text-slate-400 text-sm italic">
+                                <td colSpan={7} className="px-8 py-12 text-center text-slate-400 text-sm italic">
                                     Nenhum lançamento encontrado.
                                 </td>
                             </tr>
                         ) : (
                             filteredTransactions.map((t) => (
-                                <tr key={t.id} className="hover:bg-slate-50/80 transition-all group">
-                                    <td className="px-8 py-6 text-sm text-slate-500 font-bold tracking-tight whitespace-nowrap">
+                                <tr
+                                    key={t.id}
+                                    className={`hover:bg-slate-50/80 transition-all group ${selectedIds.includes(t.id) ? 'bg-indigo-50/30' : ''}`}
+                                >
+                                    <td className="px-5 py-6 text-center">
+                                        <input
+                                            type="checkbox"
+                                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                            checked={selectedIds.includes(t.id)}
+                                            onChange={() => toggleSelection(t.id)}
+                                        />
+                                    </td>
+                                    <td className="px-5 py-6 text-sm text-slate-500 font-bold tracking-tight whitespace-nowrap">
                                         {t.date}
                                     </td>
-                                    <td className="px-8 py-6">
+                                    <td className="px-5 py-6">
                                         <div className="flex flex-col gap-1">
                                             <span className="text-sm font-bold text-slate-800">{t.description}</span>
                                             <span className="text-xs text-slate-400 font-medium">{t.account}</span>
                                         </div>
                                     </td>
-                                    <td className="px-8 py-6">
+                                    <td className="px-5 py-6">
                                         <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-slate-100/80 text-slate-600 text-[11px] font-bold uppercase tracking-wide border border-slate-200/50">
                                             {t.category}
                                         </span>
                                     </td>
-                                    <td className={`px-8 py-6 text-sm font-extrabold text-right whitespace-nowrap ${t.type === 'INCOME' ? 'text-emerald-600' : 'text-slate-800'
+                                    <td className={`px-5 py-6 text-sm font-extrabold text-right whitespace-nowrap ${t.type === 'INCOME' ? 'text-emerald-600' : 'text-slate-800'
                                         }`}>
                                         {t.type === 'INCOME' ? '+' : '-'} R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                     </td>
-                                    <td className="px-8 py-6 text-center">
+                                    <td className="px-5 py-6 text-center">
                                         <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${t.status === 'PAID'
                                             ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
                                             : 'bg-amber-50 text-amber-600 border border-amber-100'
@@ -130,7 +203,7 @@ const TransactionList: React.FC = () => {
                                             {t.status === 'PAID' ? 'Pago' : 'Pendente'}
                                         </span>
                                     </td>
-                                    <td className="px-8 py-6 text-center">
+                                    <td className="px-5 py-6 text-center">
                                         <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                                             <button onClick={() => handleEdit(t)} className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors" title="Editar"><Edit2 size={16} /></button>
                                             <button onClick={() => handleDelete(t.id, t.description)} className="p-2 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors" title="Excluir"><Trash2 size={16} /></button>

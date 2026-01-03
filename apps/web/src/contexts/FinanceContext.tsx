@@ -15,6 +15,7 @@ interface FinanceContextData {
     addTransaction: (transaction: Omit<Transaction, 'id'>) => Promise<Transaction | null>;
     updateTransaction: (id: string, updated: Partial<Transaction>) => Promise<void>;
     deleteTransaction: (id: string) => Promise<void>;
+    deleteTransactions: (ids: string[]) => Promise<void>;
 
     // Categories & Budgets
     addCategory: (category: Omit<Category, 'id'>) => Promise<Category | null>;
@@ -272,6 +273,16 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const { error } = await supabase.from('transactions').delete().eq('id', id);
         if (error) console.error('Delete Transaction error:', error);
         else refreshData();
+    };
+
+    const deleteTransactions = async (ids: string[]) => {
+        const { error } = await supabase.from('transactions').delete().in('id', ids);
+        if (error) {
+            console.error('Delete Transactions error:', error);
+            alert('Erro ao excluir transações em massa: ' + error.message);
+        } else {
+            refreshData();
+        }
     };
 
     // Categories
