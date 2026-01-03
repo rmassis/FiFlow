@@ -62,6 +62,10 @@ const AccountsPage: React.FC = () => {
             </div>
           </div>
           <div className="h-10 w-px bg-slate-100 hidden md:block"></div>
+          <button className="flex items-center gap-2 px-6 py-3 bg-white text-slate-600 font-bold rounded-2xl border border-slate-200 hover:bg-slate-50 transition-all">
+            <Plus size={20} />
+            <span>Nova Conta</span>
+          </button>
           <button className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200">
             <Plus size={20} />
             <span>Conectar Nova Conta</span>
