@@ -116,6 +116,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
             bankName: firstAcc.institution.name,
             type: 'CHECKING',
             balance: firstAcc.balance?.current || 0,
+            accountNumber: firstAcc.number || '0000',
             color: '#6366f1'
           });
 

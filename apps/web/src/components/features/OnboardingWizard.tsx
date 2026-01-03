@@ -178,7 +178,7 @@ const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isOpen, onClose }) 
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
                     } `}
                 >
-                  <CardIcon size={16} />
+                  <CreditCard size={16} />
                   Cartão de Crédito
                 </button>
               </div>

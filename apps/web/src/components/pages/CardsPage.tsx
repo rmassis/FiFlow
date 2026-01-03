@@ -117,7 +117,7 @@ const CardsPage: React.FC = () => {
           }}
           className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:-translate-y-1"
         >
-          <Plus size={20} />
+          <CardIcon size={20} />
           <span>Novo Cartão</span>
         </button>
       </div>
@@ -173,7 +173,7 @@ const CardsPage: React.FC = () => {
                           <div className="w-1/2"></div>
                         </div>
                       </div>
-                      <CreditCard size={24} className="opacity-80" />
+                      <CardIcon size={24} className="opacity-80" />
                     </div>
                     <span className="text-xl font-mono tracking-[0.2em] mt-2 block shadow-black/10 text-shadow">•••• •••• •••• {card.lastDigits}</span>
                   </div>
