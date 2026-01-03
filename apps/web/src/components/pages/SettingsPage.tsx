@@ -18,10 +18,14 @@ import {
 
 import { useSubscription } from '../../contexts/SubscriptionContext';
 import EditProfileModal from '../features/EditProfileModal';
+import ChangePasswordModal from '../features/ChangePasswordModal';
+import DevicesModal from '../features/DevicesModal';
 
 const SettingsPage: React.FC = () => {
   const { profile, loading, plan } = useSubscription();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isDevicesModalOpen, setIsDevicesModalOpen] = useState(false);
   const [user, setUser] = useState<{ email?: string; name?: string } | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [notifications, setNotifications] = useState({
@@ -41,8 +45,11 @@ const SettingsPage: React.FC = () => {
     });
   }, [profile]);
 
-  const SettingItem = ({ icon: Icon, title, subtitle, action }: { icon: any, title: string, subtitle: string, action?: React.ReactNode }) => (
-    <div className="flex items-center justify-between p-6 bg-white hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-0 first:rounded-t-[24px] last:rounded-b-[24px]">
+  const SettingItem = ({ icon: Icon, title, subtitle, action, onClick }: { icon: any, title: string, subtitle: string, action?: React.ReactNode, onClick?: () => void }) => (
+    <div
+      onClick={onClick}
+      className={`flex items-center justify-between p-6 bg-white hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-0 first:rounded-t-[24px] last:rounded-b-[24px] ${onClick ? 'cursor-pointer' : ''}`}
+    >
       <div className="flex items-center gap-4">
         <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center">
           <Icon size={20} />
@@ -90,11 +97,13 @@ const SettingsPage: React.FC = () => {
             icon={Shield}
             title="Segurança da Conta"
             subtitle="Gerencie sua senha e autenticação de dois fatores"
+            onClick={() => setIsPasswordModalOpen(true)}
           />
           <SettingItem
             icon={Smartphone}
             title="Dispositivos Conectados"
             subtitle="Sessões ativas no seu celular, tablet ou desktop"
+            onClick={() => setIsDevicesModalOpen(true)}
           />
         </div>
       </section>
@@ -207,6 +216,14 @@ const SettingsPage: React.FC = () => {
       <EditProfileModal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
+      />
+      <ChangePasswordModal
+        isOpen={isPasswordModalOpen}
+        onClose={() => setIsPasswordModalOpen(false)}
+      />
+      <DevicesModal
+        isOpen={isDevicesModalOpen}
+        onClose={() => setIsDevicesModalOpen(false)}
       />
     </div>
   );
