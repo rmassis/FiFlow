@@ -25,6 +25,12 @@ import AIPreferencesModal from '../features/AIPreferencesModal';
 import ExportDataModal from '../features/ExportDataModal';
 import AdminAccessModal from '../features/AdminAccessModal';
 
+const ADMIN_EMAILS = [
+  'rmassis1@gmail.com',
+  'fiflow.app@gmail.com',
+  'rodrigo-de-assis@hotmail.com'
+];
+
 const SettingsPage: React.FC = () => {
   const { profile, loading, plan } = useSubscription();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -83,6 +89,8 @@ const SettingsPage: React.FC = () => {
   };
 
   const handleVersionClick = () => {
+    if (!user?.email || !ADMIN_EMAILS.includes(user.email)) return;
+
     setAdminClickCount(prev => {
       const newCount = prev + 1;
       if (newCount === 5) {
