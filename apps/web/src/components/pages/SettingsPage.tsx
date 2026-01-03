@@ -22,6 +22,7 @@ import ChangePasswordModal from '../features/ChangePasswordModal';
 import DevicesModal from '../features/DevicesModal';
 import RegionModal from '../features/RegionModal';
 import AIPreferencesModal from '../features/AIPreferencesModal';
+import ExportDataModal from '../features/ExportDataModal';
 
 const SettingsPage: React.FC = () => {
   const { profile, loading, plan } = useSubscription();
@@ -30,6 +31,7 @@ const SettingsPage: React.FC = () => {
   const [isDevicesModalOpen, setIsDevicesModalOpen] = useState(false);
   const [isRegionModalOpen, setIsRegionModalOpen] = useState(false);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [user, setUser] = useState<{ email?: string; name?: string } | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem('fiflow_theme') === 'dark';
@@ -61,6 +63,21 @@ const SettingsPage: React.FC = () => {
       localStorage.setItem('fiflow_theme', 'light');
     }
   }, [isDarkMode]);
+
+  const handlePushNotificationToggle = async () => {
+    if (!notifications.push) {
+      // Request permission
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        setNotifications(prev => ({ ...prev, push: true }));
+        new Notification('FiFlow Notificações', {
+          body: 'Notificações ativadas com sucesso! 🔔'
+        });
+      }
+    } else {
+      setNotifications(prev => ({ ...prev, push: false }));
+    }
+  };
 
   const SettingItem = ({ icon: Icon, title, subtitle, action, onClick }: { icon: any, title: string, subtitle: string, action?: React.ReactNode, onClick?: () => void }) => (
     <div
@@ -167,7 +184,7 @@ const SettingsPage: React.FC = () => {
             subtitle="Alertas de gastos excedidos e faturas"
             action={
               <button
-                onClick={() => setNotifications({ ...notifications, push: !notifications.push })}
+                onClick={handlePushNotificationToggle}
                 className={`w-12 h-6 rounded-full transition-colors relative ${notifications.push ? 'bg-emerald-500' : 'bg-slate-200'}`}
               >
                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${notifications.push ? 'left-7' : 'left-1'}`} />
@@ -178,6 +195,7 @@ const SettingsPage: React.FC = () => {
             icon={Database}
             title="Backup e Dados"
             subtitle="Sincronização automática com a nuvem"
+            onClick={() => setIsExportModalOpen(true)}
             action={
               <div className="flex items-center gap-2 text-emerald-600">
                 <Cloud size={16} />
@@ -251,6 +269,10 @@ const SettingsPage: React.FC = () => {
       <AIPreferencesModal
         isOpen={isAIModalOpen}
         onClose={() => setIsAIModalOpen(false)}
+      />
+      <ExportDataModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
       />
     </div>
   );
