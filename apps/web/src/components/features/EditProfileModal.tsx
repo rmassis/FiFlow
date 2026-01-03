@@ -40,9 +40,9 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose }) 
                 date_of_birth: birthDate ? birthDate : undefined
             });
             onClose();
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            alert('Erro ao atualizar perfil. Verifique os dados e tente novamente.');
+            alert(`Erro ao atualizar perfil: ${error.message || 'Erro desconhecido'}`);
         } finally {
             setIsLoading(false);
         }
