@@ -194,18 +194,36 @@ const AppContent: React.FC<{ session: Session }> = ({ session }) => {
           </button>
         </header>
 
-        account: targetAccount?.name || 'Importado'
-              });
-            });
-        setIsImportOpen(false);
-          }}
-        />
-        <UpdatePasswordModal
-          isOpen={isUpdatePasswordOpen}
-          onClose={() => setIsUpdatePasswordOpen(false)}
-        />
+        <div className="flex-1 px-4 md:px-8 pb-8 overflow-y-auto custom-scrollbar">
+          {renderContent()}
+        </div>
       </main>
-    </div>
+
+      <ImportModal
+        isOpen={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        onSave={addTransaction}
+        categories={categories}
+        accounts={accounts}
+      />
+
+      <UpdatePasswordModal
+        isOpen={isUpdatePasswordOpen}
+        onClose={() => {
+          setIsUpdatePasswordOpen(false);
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, '', newUrl);
+        }}
+      />
+
+      <AIAssistant />
+
+      <OnboardingWizard
+        isOpen={!loading && accounts.length === 0 && !subLoading && !isUpdatePasswordOpen}
+        onClose={() => { }}
+      />
+
+    </div >
   );
 };
 
