@@ -202,45 +202,59 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
     // Try to identify header
     const headers = lines[0].toLowerCase().split(/[;,]/);
 
-    // Check if it's OFX converted or standard banking CSV
-    // Simple heuristic: look for date, amount, description columns
-    const dateIdx = headers.findIndex(h => h.includes('data') || h.includes('date'));
-    const descIdx = headers.findIndex(h => h.includes('desc') || h.includes('historico') || h.includes('memo'));
-    const amountIdx = headers.findIndex(h => h.includes('valor') || h.includes('amount'));
+    // Enhanced heuristic: look for date, amount, description columns
+    const dateIdx = headers.findIndex(h => h.includes('data') || h.includes('date') || h.includes('dt'));
+    const descIdx = headers.findIndex(h => h.includes('desc') || h.includes('historico') || h.includes('memo') || h.includes('lançamento') || h.includes('lancamento') || h.includes('estabelecimento'));
+    const amountIdx = headers.findIndex(h => h.includes('valor') || h.includes('amount') || h.includes('rs') || h.includes('r$'));
 
     const parsedData: TransactionInput[] = [];
 
-    // If headers found, skip first line
-    const startIdx = (dateIdx !== -1 && descIdx !== -1) ? 1 : 0;
+    // If headers found (at least 2 matches), skip first line. Otherwise assume no header if parsing logic allows?
+    // Safer to assume header exists if ANY match found in line 0.
+    const startIdx = (dateIdx !== -1 || descIdx !== -1 || amountIdx !== -1) ? 1 : 0;
+
+    // Default indices if not found (assuming standard: Date, Desc, Amount or similar)
+    // If completely unknown, we might guess 0, 1, 2 but let's be strict about searching valid lines
+    const effDateIdx = dateIdx !== -1 ? dateIdx : 0;
+    const effDescIdx = descIdx !== -1 ? descIdx : 1;
+    const effAmountIdx = amountIdx !== -1 ? amountIdx : 2;
 
     for (let i = startIdx; i < lines.length; i++) {
-      // Split by comma or semicolon, handling quotes if possible (simplified here)
-      const cols = lines[i].split(/[;,]/);
+      // Handle CSV quoting somewhat
+      const cols = lines[i].split(/[;,]/); // Simple split, might break on quoted commas. Ideally use a library but manual is requested req.
 
-      if (cols.length < 3) continue;
+      if (cols.length < 2) continue;
 
-      // Extract values based on found indices or defaults (0, 1, 2)
-      let rawDate = (dateIdx !== -1 ? cols[dateIdx] : cols[0])?.trim();
-      let rawDesc = (descIdx !== -1 ? cols[descIdx] : cols[1])?.trim();
-      let rawAmount = (amountIdx !== -1 ? cols[amountIdx] : cols[2])?.trim();
+      let rawDate = cols[effDateIdx]?.trim();
+      let rawDesc = cols[effDescIdx]?.trim();
+      let rawAmount = cols[effAmountIdx]?.trim();
+
+      // Skip empty rows
+      if (!rawDate && !rawDesc && !rawAmount) continue;
 
       // Basic cleanup
-      if (!rawDate || !rawAmount) continue;
+      if (rawDesc) rawDesc = rawDesc.replace(/^"|"$/g, '').replace(/^'|'$/g, '');
 
       // Parse Amount (handle R$, dots/commas)
       // Remove currency symbols, fix decimal separator
+      if (!rawAmount) rawAmount = "0";
       let amountVal = parseFloat(rawAmount.replace(/[^0-9,-.]/g, '').replace(',', '.'));
 
-      // If amount is NaN, try swapping . and , (Brazilian format often 1.000,00)
+      // If amount is NaN, try swapping . and , (Brazilian format often 1.000,00 -> remove dot, replace comma)
       if (isNaN(amountVal)) {
-        amountVal = parseFloat(rawAmount.replace(/\./g, '').replace(',', '.'));
+        // Try: 1.000,00 -> "1000.00"
+        const brFormat = rawAmount.replace(/\./g, '').replace(',', '.');
+        amountVal = parseFloat(brFormat);
       }
+
+      // Final check: if still NaN, skip this row (it's likely garbage or a second header)
+      if (isNaN(amountVal)) continue;
 
       parsedData.push({
         id: `import-${Date.now()}-${i}`,
-        data: rawDate,
-        descricao: rawDesc.replace(/^"|"$/g, ''), // remove quotes
-        valor: Math.abs(amountVal), // Store absolute for categorization, handle sign logic if needed
+        data: rawDate || new Date().toLocaleDateString('pt-BR'),
+        descricao: rawDesc || 'Sem descrição',
+        valor: Math.abs(amountVal),
         banco: 'Importado'
       });
     }

@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || '' });
 
-const MODEL_NAME = "gemini-2.0-flash-exp";
+const MODEL_NAME = "gemini-1.5-flash";
 
 const SYSTEM_PROMPT = `
 # SISTEMA DE CATEGORIZAÇÃO INTELIGENTE FIFLOW v2.0
@@ -1478,122 +1478,122 @@ Processar transações com:
 `;
 
 export interface TransactionInput {
-    id: string;
-    data: string;
-    descricao: string;
-    valor: number;
-    banco: string;
+  id: string;
+  data: string;
+  descricao: string;
+  valor: number;
+  banco: string;
 }
 
 export interface CategorizedTransaction extends TransactionInput {
-    classificacao: string;
-    categoria_principal: string;
-    confianca: 'alta' | 'media' | 'baixa';
+  classificacao: string;
+  categoria_principal: string;
+  confianca: 'alta' | 'media' | 'baixa';
 }
 
 export interface CategorizationResult {
-    transacoes_categorizadas: CategorizedTransaction[];
-    estatisticas: {
-        total_processadas: number;
-        alta_confianca: number;
-        media_confianca: number;
-        baixa_confianca: number;
-        nao_categorizadas: number;
-        taxa_sucesso: number;
-    };
-    metadata: {
-        versao_sistema: string;
-        data_processamento: string;
-        tempo_processamento_ms: number;
-    };
+  transacoes_categorizadas: CategorizedTransaction[];
+  estatisticas: {
+    total_processadas: number;
+    alta_confianca: number;
+    media_confianca: number;
+    baixa_confianca: number;
+    nao_categorizadas: number;
+    taxa_sucesso: number;
+  };
+  metadata: {
+    versao_sistema: string;
+    data_processamento: string;
+    tempo_processamento_ms: number;
+  };
 }
 
 export const categorizeTransactions = async (
-    transactions: TransactionInput[]
+  transactions: TransactionInput[]
 ): Promise<CategorizationResult> => {
-    const startTime = Date.now();
+  const startTime = Date.now();
 
-    try {
-        // Adicionar contexto de processamento
-        const processingContext = {
-            transacoes: transactions,
-            total_transacoes: transactions.length,
-            data_processamento: new Date().toISOString()
-        };
+  try {
+    // Adicionar contexto de processamento
+    const processingContext = {
+      transacoes: transactions,
+      total_transacoes: transactions.length,
+      data_processamento: new Date().toISOString()
+    };
 
-        const response = await ai.models.generateContent({
-            model: MODEL_NAME,
-            contents: JSON.stringify(processingContext),
-            config: {
-                systemInstruction: SYSTEM_PROMPT,
-                temperature: 0.1, // Baixa temperatura para máximo determinismo
-                responseMimeType: "application/json"
-            },
-        });
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: JSON.stringify(processingContext),
+      config: {
+        systemInstruction: SYSTEM_PROMPT,
+        temperature: 0.1, // Baixa temperatura para máximo determinismo
+        responseMimeType: "application/json"
+      },
+    });
 
-        const resultText = response.text || "{}";
+    const resultText = response.text || "{}";
 
-        // Remover possíveis markdown (segurança extra)
-        const cleanedText = resultText
-            .replace(/```json\n?/g, '')
-            .replace(/```\n?/g, '')
-            .trim();
+    // Remover possíveis markdown (segurança extra)
+    const cleanedText = resultText
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim();
 
-        const parsedResult = JSON.parse(cleanedText) as CategorizationResult;
+    const parsedResult = JSON.parse(cleanedText) as CategorizationResult;
 
-        // Calcular tempo de processamento
-        const processingTime = Date.now() - startTime;
+    // Calcular tempo de processamento
+    const processingTime = Date.now() - startTime;
 
-        // Validar e enriquecer metadata
-        const enrichedResult: CategorizationResult = {
-            ...parsedResult,
-            estatisticas: {
-                ...parsedResult.estatisticas,
-                taxa_sucesso: parsedResult.estatisticas.total_processadas > 0
-                    ? ((parsedResult.estatisticas.alta_confianca + parsedResult.estatisticas.media_confianca) /
-                        parsedResult.estatisticas.total_processadas) * 100
-                    : 0
-            },
-            metadata: {
-                versao_sistema: "2.0",
-                data_processamento: new Date().toISOString(),
-                tempo_processamento_ms: processingTime
-            }
-        };
+    // Validar e enriquecer metadata
+    const enrichedResult: CategorizationResult = {
+      ...parsedResult,
+      estatisticas: {
+        ...parsedResult.estatisticas,
+        taxa_sucesso: parsedResult.estatisticas.total_processadas > 0
+          ? ((parsedResult.estatisticas.alta_confianca + parsedResult.estatisticas.media_confianca) /
+            parsedResult.estatisticas.total_processadas) * 100
+          : 0
+      },
+      metadata: {
+        versao_sistema: "2.0",
+        data_processamento: new Date().toISOString(),
+        tempo_processamento_ms: processingTime
+      }
+    };
 
-        // Validação de integridade
-        if (enrichedResult.transacoes_categorizadas.length !== transactions.length) {
-            console.warn('⚠️ Número de transações processadas diferente do esperado!');
-        }
-
-        return enrichedResult;
-
-    } catch (error) {
-        console.error("❌ Erro ao categorizar transações com IA:", error);
-
-        const processingTime = Date.now() - startTime;
-
-        // Retorno de fallback em caso de erro
-        return {
-            transacoes_categorizadas: transactions.map(t => ({
-                ...t,
-                classificacao: "Erro de Análise",
-                categoria_principal: "OUTROS - Erro",
-                confianca: "baixa"
-            })),
-            estatisticas: {
-                total_processadas: transactions.length,
-                alta_confianca: 0,
-                media_confianca: 0,
-                baixa_confianca: transactions.length,
-                nao_categorizadas: transactions.length,
-                taxa_sucesso: 0
-            },
-            metadata: {
-                versao_sistema: "2.0",
-                data_processamento: new Date().toISOString(),
-                tempo_processamento_ms: processingTime
-            }
-        };
+    // Validação de integridade
+    if (enrichedResult.transacoes_categorizadas.length !== transactions.length) {
+      console.warn('⚠️ Número de transações processadas diferente do esperado!');
     }
+
+    return enrichedResult;
+
+  } catch (error) {
+    console.error("❌ Erro ao categorizar transações com IA:", error);
+
+    const processingTime = Date.now() - startTime;
+
+    // Retorno de fallback em caso de erro
+    return {
+      transacoes_categorizadas: transactions.map(t => ({
+        ...t,
+        classificacao: "Erro de Análise",
+        categoria_principal: "OUTROS - Erro",
+        confianca: "baixa"
+      })),
+      estatisticas: {
+        total_processadas: transactions.length,
+        alta_confianca: 0,
+        media_confianca: 0,
+        baixa_confianca: transactions.length,
+        nao_categorizadas: transactions.length,
+        taxa_sucesso: 0
+      },
+      metadata: {
+        versao_sistema: "2.0",
+        data_processamento: new Date().toISOString(),
+        tempo_processamento_ms: processingTime
+      }
+    };
+  }
 };
