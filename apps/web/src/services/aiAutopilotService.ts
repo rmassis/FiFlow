@@ -388,7 +388,21 @@ export const processUserCommand = async (
     });
 
     const resultText = completion.choices[0].message.content || "{}";
-    const parsed = JSON.parse(resultText);
+
+    // Clean string if it contains markdown code blocks
+    const cleanJson = resultText.replace(/```json\n?|\n?```/g, '').trim();
+
+    let parsed;
+    try {
+      parsed = JSON.parse(cleanJson);
+    } catch (e) {
+      console.warn("Falha ao fazer parse do JSON da IA. Retornando resposta crua.", resultText);
+      // Fallback for non-JSON responses (rare with response_format: json_object but possible)
+      parsed = {
+        message: resultText,
+        confidence: 0.5
+      };
+    }
 
     // Validate response structure
     if (!parsed.message || typeof parsed.confidence !== 'number') {
