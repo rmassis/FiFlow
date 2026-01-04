@@ -1,12 +1,12 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useFinance } from '../../contexts/FinanceContext';
+import { BankAccount } from '../../types';
 import {
   Wallet,
   Plus,
   ArrowUpRight,
-  ArrowDownLeft,
-  MoreHorizontal,
+  ArrowDownLeft, // Keep imported but unused if necessary? No, I'll use it in the UI.
   ShieldCheck,
   Landmark,
   PiggyBank,
@@ -14,20 +14,25 @@ import {
   ChevronRight,
   TrendingUp,
   X,
-  Check
+  Check,
+  Edit2,
+  Trash2
 } from 'lucide-react';
 
 const AccountsPage: React.FC = () => {
-  const { accounts, addAccount } = useFinance();
-  const [isNewAccountModalOpen, setIsNewAccountModalOpen] = React.useState(false);
-  const [newAccountData, setNewAccountData] = React.useState({
+  const { accounts, addAccount, updateAccount, deleteAccount } = useFinance();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
+
+  const [formData, setFormData] = useState({
     name: '',
     bankName: '',
-    type: 'CHECKING',
+    type: 'CHECKING' as 'CHECKING' | 'SAVINGS' | 'INVESTMENT' | 'CASH',
     balance: '',
     color: '#6366f1'
   });
-  const [loading, setLoading] = React.useState(false);
+
+  const [loading, setLoading] = useState(false);
   const totalBalance = accounts.reduce((acc, curr) => acc + curr.balance, 0);
 
   const getTypeIcon = (type: string) => {
@@ -44,31 +49,70 @@ const AccountsPage: React.FC = () => {
       case 'CHECKING': return 'Conta Corrente';
       case 'SAVINGS': return 'Poupança / Reserva';
       case 'INVESTMENT': return 'Conta Investimento';
+      case 'CASH': return 'Carteira Física';
       default: return 'Outros';
     }
   };
 
-  const handleSaveAccount = async () => {
-    if (!newAccountData.name || !newAccountData.balance) return;
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      bankName: '',
+      type: 'CHECKING',
+      balance: '',
+      color: '#6366f1'
+    });
+    setEditingAccount(null);
+  };
+
+  const openNewAccount = () => {
+    resetForm();
+    setIsModalOpen(true);
+  };
+
+  const openEditAccount = (account: BankAccount) => {
+    setEditingAccount(account);
+    setFormData({
+      name: account.name,
+      bankName: account.bankName,
+      type: account.type,
+      balance: account.balance.toString(),
+      color: account.color
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!formData.name || !formData.balance) return;
 
     setLoading(true);
     try {
-      await addAccount({
-        name: newAccountData.name,
-        bankName: newAccountData.bankName || 'Banco',
-        type: newAccountData.type as any,
-        balance: parseFloat(newAccountData.balance.replace('R$', '').replace('.', '').replace(',', '.').trim()),
-        accountNumber: '****',
-        color: newAccountData.color
-      });
-      setIsNewAccountModalOpen(false);
-      setNewAccountData({
-        name: '',
-        bankName: '',
-        type: 'CHECKING',
-        balance: '',
-        color: '#6366f1'
-      });
+      const balanceValue = parseFloat(
+        formData.balance.toString().replace('R$', '').replace(/\./g, '').replace(',', '.')
+      );
+
+      if (editingAccount) {
+        // Update
+        await updateAccount(editingAccount.id, {
+          name: formData.name,
+          bankName: formData.bankName || 'Banco',
+          type: formData.type,
+          balance: balanceValue,
+          color: formData.color
+        });
+      } else {
+        // Create
+        await addAccount({
+          name: formData.name,
+          bankName: formData.bankName || 'Banco',
+          type: formData.type,
+          balance: balanceValue,
+          accountNumber: '****', // Placeholder
+          color: formData.color
+        });
+      }
+      setIsModalOpen(false);
+      resetForm();
     } catch (error) {
       console.error(error);
     } finally {
@@ -76,9 +120,26 @@ const AccountsPage: React.FC = () => {
     }
   };
 
+  const handleDelete = async (id: string, name: string) => {
+    if (confirm(`Tem certeza que deseja excluir a conta "${name}"? Todo o histórico associado poderá ser afetado.`)) {
+      await deleteAccount(id);
+    }
+  };
+
+  // Delete from modal
+  const handleDeleteFromModal = async () => {
+    if (editingAccount) {
+      if (confirm(`Tem certeza que deseja excluir a conta "${editingAccount.name}"?`)) {
+        await deleteAccount(editingAccount.id);
+        setIsModalOpen(false);
+        resetForm();
+      }
+    }
+  }
+
   return (
     <>
-      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
         {/* Total Balance Summary */}
         <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-8">
           <div className="flex items-center gap-6">
@@ -103,14 +164,14 @@ const AccountsPage: React.FC = () => {
             </div>
             <div className="h-10 w-px bg-slate-100 hidden md:block"></div>
             <button
-              onClick={() => setIsNewAccountModalOpen(true)}
+              onClick={openNewAccount}
               className="flex items-center gap-2 px-6 py-3 bg-white text-slate-600 font-bold rounded-2xl border border-slate-200 hover:bg-slate-50 transition-all">
               <Plus size={20} />
               <span>Nova Conta</span>
             </button>
             <button className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200">
               <Plus size={20} />
-              <span>Conectar Nova Conta</span>
+              <span>Conectar Banco</span>
             </button>
           </div>
         </div>
@@ -119,11 +180,17 @@ const AccountsPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {accounts.length === 0 && (
             <div className="col-span-full py-12 text-center text-slate-500 bg-white rounded-[32px] border border-slate-100">
-              Nenhuma conta conectada ainda.
+              <div className="flex flex-col items-center">
+                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                  <Landmark size={32} className="text-slate-300" />
+                </div>
+                <p className="font-bold text-slate-600">Nenhuma conta conectada</p>
+                <p className="text-sm text-slate-400 mt-1">Adicione suas contas bancárias para começar.</p>
+              </div>
             </div>
           )}
           {accounts.map((account) => (
-            <div key={account.id} className="bg-white rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all group overflow-hidden">
+            <div key={account.id} className="bg-white rounded-[32px] border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-indigo-100/20 transition-all group overflow-hidden relative">
               <div className="p-8">
                 <div className="flex justify-between items-start mb-8">
                   <div className="flex items-center gap-4">
@@ -138,9 +205,24 @@ const AccountsPage: React.FC = () => {
                       <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{account.bankName}</p>
                     </div>
                   </div>
-                  <button className="p-2 text-slate-300 hover:text-slate-600 transition-colors">
-                    <MoreHorizontal size={20} />
-                  </button>
+
+                  {/* Actions */}
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all transform translate-x-4 group-hover:translate-x-0 bg-white/80 backdrop-blur-sm rounded-xl p-1">
+                    <button
+                      onClick={() => openEditAccount(account)}
+                      className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                      title="Editar Conta"
+                    >
+                      <Edit2 size={18} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(account.id, account.name)}
+                      className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                      title="Excluir Conta"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex items-end justify-between">
@@ -159,7 +241,7 @@ const AccountsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="px-8 py-4 bg-slate-50/50 flex items-center justify-between border-t border-slate-100 group-hover:bg-slate-50 transition-colors">
+              <div className="px-8 py-4 bg-slate-50/50 flex items-center justify-between border-t border-slate-100 group-hover:bg-slate-50 transition-colors cursor-pointer">
                 <div className="flex gap-4">
                   <button className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:underline">
                     <ArrowUpRight size={14} />
@@ -175,7 +257,7 @@ const AccountsPage: React.FC = () => {
             </div>
           ))}
 
-          {/* AI Recommendation Card */}
+          {/* AI Recommendation Card (Keeping it as is) */}
           <div className="bg-gradient-to-br from-indigo-50 to-white rounded-[32px] border border-indigo-100 p-8 flex flex-col justify-between relative overflow-hidden">
             <div className="relative z-10">
               <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center mb-6 shadow-lg shadow-indigo-100">
@@ -190,56 +272,69 @@ const AccountsPage: React.FC = () => {
             <button className="relative z-10 w-full py-3 bg-white border border-indigo-200 text-indigo-600 font-bold rounded-xl hover:bg-indigo-50 transition-all text-sm shadow-sm">
               Otimizar Saldo
             </button>
-
-            {/* Abstract BG */}
             <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-indigo-100/50 rounded-full blur-2xl"></div>
           </div>
         </div>
       </div>
 
-      {/* New Account Modal */}
+      {/* Modal - Shared for Create and Edit */}
       {
-        isNewAccountModalOpen && (
+        isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in">
-            <div className="bg-white rounded-[32px] w-full max-w-md p-8 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="bg-white rounded-[32px] w-full max-w-md p-8 shadow-2xl animate-in zoom-in-95 duration-200 relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
+
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold text-slate-800">Nova Conta</h3>
-                <button
-                  onClick={() => setIsNewAccountModalOpen(false)}
-                  className="p-2 hover:bg-slate-100 rounded-full transition-colors"
-                >
-                  <X size={20} className="text-slate-500" />
-                </button>
+                <h3 className="text-2xl font-bold text-slate-800">
+                  {editingAccount ? 'Editar Conta' : 'Nova Conta'}
+                </h3>
+                <div className="flex items-center gap-2">
+                  {editingAccount && (
+                    <button
+                      onClick={handleDeleteFromModal}
+                      className="p-2 text-rose-400 hover:bg-rose-50 rounded-full transition-colors"
+                      title="Excluir"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setIsModalOpen(false)}
+                    className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                  >
+                    <X size={20} className="text-slate-400" />
+                  </button>
+                </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nome da Conta</label>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Nome da Conta</label>
                   <input
                     autoFocus
                     placeholder="Ex: Conta Principal"
-                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500 transition-all"
-                    value={newAccountData.name}
-                    onChange={e => setNewAccountData({ ...newAccountData, name: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 font-bold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                    value={formData.name}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })}
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Instituição</label>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Instituição</label>
                     <input
                       placeholder="Ex: Nubank"
-                      className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500 transition-all"
-                      value={newAccountData.bankName}
-                      onChange={e => setNewAccountData({ ...newAccountData, bankName: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                      value={formData.bankName}
+                      onChange={e => setFormData({ ...formData, bankName: e.target.value })}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo</label>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Tipo</label>
                     <select
-                      className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500 transition-all"
-                      value={newAccountData.type}
-                      onChange={e => setNewAccountData({ ...newAccountData, type: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all appearance-none"
+                      value={formData.type}
+                      onChange={e => setFormData({ ...formData, type: e.target.value as any })}
                     >
                       <option value="CHECKING">Corrente</option>
                       <option value="SAVINGS">Poupança</option>
@@ -250,30 +345,30 @@ const AccountsPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Saldo Inicial</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-3.5 text-slate-400 font-bold">R$</span>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Saldo Atual</label>
+                  <div className="relative group">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold group-focus-within:text-indigo-500 transition-colors">R$</span>
                     <input
                       type="number"
                       placeholder="0,00"
-                      className="w-full bg-slate-50 border-none rounded-xl pl-10 pr-4 py-3 text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500 transition-all"
-                      value={newAccountData.balance}
-                      onChange={e => setNewAccountData({ ...newAccountData, balance: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-slate-900 font-bold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                      value={formData.balance}
+                      onChange={e => setFormData({ ...formData, balance: e.target.value })}
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Cor do Card</label>
-                  <div className="flex gap-2 flex-wrap">
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Cor do Card</label>
+                  <div className="flex gap-2 flex-wrap bg-slate-50 p-3 rounded-xl border border-slate-200">
                     {['#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6'].map(color => (
                       <button
                         key={color}
-                        onClick={() => setNewAccountData({ ...newAccountData, color })}
-                        className={`w-8 h-8 rounded-full transition-transform hover:scale-110 flex items-center justify-center ${newAccountData.color === color ? 'ring-2 ring-offset-2 ring-slate-400' : ''}`}
+                        onClick={() => setFormData({ ...formData, color })}
+                        className={`w-8 h-8 rounded-full transition-transform hover:scale-110 flex items-center justify-center ${formData.color === color ? 'ring-2 ring-offset-2 ring-indigo-400 scale-110' : ''}`}
                         style={{ backgroundColor: color }}
                       >
-                        {newAccountData.color === color && <Check size={14} className="text-white" />}
+                        {formData.color === color && <Check size={14} className="text-white" />}
                       </button>
                     ))}
                   </div>
@@ -282,11 +377,11 @@ const AccountsPage: React.FC = () => {
 
               <div className="mt-8">
                 <button
-                  onClick={handleSaveAccount}
-                  disabled={loading || !newAccountData.name || !newAccountData.balance}
-                  className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  onClick={handleSave}
+                  disabled={loading || !formData.name || !formData.balance}
+                  className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 active:scale-95"
                 >
-                  {loading ? 'Criando...' : 'Criar Conta'}
+                  {loading ? 'Salvando...' : (editingAccount ? 'Salvar Alterações' : 'Criar Conta')}
                 </button>
               </div>
             </div>
