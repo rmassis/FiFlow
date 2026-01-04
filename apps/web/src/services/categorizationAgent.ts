@@ -1674,18 +1674,29 @@ export const categorizeTransactions = async (
 
     return enrichedResult;
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("❌ Erro ao categorizar transações com IA:", error);
 
     const processingTime = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorType = error?.constructor?.name || "Error";
+
+    // Detectar erro de API Key
+    let friendlyError = errorMessage;
+    if (errorMessage.includes("API key not valid") || errorMessage.includes("403") || !import.meta.env.VITE_GEMINI_API_KEY) {
+      friendlyError = "Erro: Chave API Inválida ou Ausente";
+    } else if (errorMessage.includes("429") || errorMessage.includes("Quota")) {
+      friendlyError = "Erro: Cota da API Excedida";
+    }
 
     // Retorno de fallback em caso de erro
     return {
       transacoes_categorizadas: transactions.map(t => ({
         ...t,
-        classificacao: "Erro de Análise",
+        classificacao: friendlyError.substring(0, 30), // Short for subcategory column
         categoria_principal: "OUTROS - Erro",
-        confianca: "baixa"
+        confianca: "baixa",
+        justificativa: `Detalhes: ${errorMessage}` // Full details
       })),
       estatisticas: {
         total_processadas: transactions.length,
