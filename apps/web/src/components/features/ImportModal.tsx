@@ -297,363 +297,369 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
         descricao: rawDesc || 'Sem descrição',
         valor: Math.abs(amountVal),
         banco: 'Importado'
+      });
+    }
+
+    return parsedData;
+  };
+
   /* Helper to parse OFX manually */
   const parseOFX = (content: string): TransactionInput[] => {
-          const transactions: TransactionInput[] = [];
+    const transactions: TransactionInput[] = [];
 
-          // Split into transaction blocks
-          const rawTransactions = content.split('<STMTTRN>');
+    // Split into transaction blocks
+    const rawTransactions = content.split('<STMTTRN>');
 
-          // Skip the first chunk (header stuff)
-          for (let i = 1; i < rawTransactions.length; i++) {
-            const block = rawTransactions[i];
+    // Skip the first chunk (header stuff)
+    for (let i = 1; i < rawTransactions.length; i++) {
+      const block = rawTransactions[i];
 
-            // Extract fields using Regex
-            // SGML tags might not close, so we look for the start tag and grab until next tag or newline
-            const extractField = (tag: string) => {
-              const regex = new RegExp(`<${tag}>([^<\r\n]+)`, 'i');
-              const match = block.match(regex);
-              return match ? match[1].trim() : null;
-            };
+      // Extract fields using Regex
+      // SGML tags might not close, so we look for the start tag and grab until next tag or newline
+      const extractField = (tag: string) => {
+        const regex = new RegExp(`<${tag}>([^<\r\n]+)`, 'i');
+        const match = block.match(regex);
+        return match ? match[1].trim() : null;
+      };
 
-            const dateStr = extractField('DTPOSTED');
-            const amountStr = extractField('TRNAMT');
-            const memoStr = extractField('MEMO');
+      const dateStr = extractField('DTPOSTED');
+      const amountStr = extractField('TRNAMT');
+      const memoStr = extractField('MEMO');
 
-            if (!dateStr || !amountStr || !memoStr) continue;
+      if (!dateStr || !amountStr || !memoStr) continue;
 
-            // Parse Date: YYYYMMDDHHMMSS[-3:GMT] -> DD/MM/YYYY
-            // 20251031000000 -> 31/10/2025
-            const year = dateStr.substring(0, 4);
-            const month = dateStr.substring(4, 6);
-            const day = dateStr.substring(6, 8);
-            const formattedDate = `${day}/${month}/${year}`;
+      // Parse Date: YYYYMMDDHHMMSS[-3:GMT] -> DD/MM/YYYY
+      // 20251031000000 -> 31/10/2025
+      const year = dateStr.substring(0, 4);
+      const month = dateStr.substring(4, 6);
+      const day = dateStr.substring(6, 8);
+      const formattedDate = `${day}/${month}/${year}`;
 
-            // Parse Amount
-            const amount = parseFloat(amountStr.replace(',', '.')); // OFX usually uses dot, but safe to handle comma
+      // Parse Amount
+      const amount = parseFloat(amountStr.replace(',', '.')); // OFX usually uses dot, but safe to handle comma
 
-            if (isNaN(amount)) continue;
+      if (isNaN(amount)) continue;
 
-            transactions.push({
-              id: `ofx-${Date.now()}-${i}`,
-              data: formattedDate,
-              descricao: memoStr,
-              valor: Math.abs(amount), // We store absolute value for the categorization/UI, type is derived later
-              banco: 'Importado (OFX)'
-            });
+      transactions.push({
+        id: `ofx-${Date.now()}-${i}`,
+        data: formattedDate,
+        descricao: memoStr,
+        valor: Math.abs(amount), // We store absolute value for the categorization/UI, type is derived later
+        banco: 'Importado (OFX)'
+      });
+    }
+
+    return transactions;
+  };
+
+  const handleAnalyze = async () => {
+    setIsAnalyzing(true);
+    try {
+      let allRawTransactions: TransactionInput[] = [];
+
+      // Process uploaded files
+      for (const file of files) {
+        const content = await readFileContent(file);
+
+        if (file.name.toLowerCase().endsWith('.csv')) {
+          const parsed = parseCSV(content);
+          allRawTransactions = [...allRawTransactions, ...parsed];
+        } else if (file.name.toLowerCase().endsWith('.ofx')) {
+          const parsed = parseOFX(content);
+          allRawTransactions = [...allRawTransactions, ...parsed];
+        } else {
+          console.warn('Formato não suportado:', file.name);
+          alert(`Formato .${file.name.split('.').pop()} não suportado. Use CSV ou OFX.`);
+        }
+      }
+
+      if (allRawTransactions.length === 0 && files.length > 0) {
+        throw new Error("Nenhuma transação encontrada. Verifique o formato dos arquivos.");
+      }
+
+      let mappedPreview: PreviewTransaction[] = [];
+
+      if (allRawTransactions.length > 0) {
+        console.log("Chamando categorização IA...", allRawTransactions.length);
+        const result = await categorizeTransactions(allRawTransactions);
+        console.log("Resultado IA:", result);
+
+        mappedPreview = result.transacoes_categorizadas.map(t => {
+          let finalCategory = t.categoria_principal;
+
+          // Safety check: if AI returns error strings (hallucination or catch block), normalize them
+          const errorPattern = /err|fail|classificar|undefined|null/i;
+          if (!finalCategory || errorPattern.test(finalCategory) || finalCategory === 'OUTROS - Erro') {
+            finalCategory = 'OUTROS';
           }
 
-          return transactions;
-        };
+          return {
+            id: t.id,
+            date: t.data,
+            description: t.descricao,
+            amount: t.valor,
+            category: finalCategory,
+            subcategory: t.classificacao,
+            type: finalCategory.includes('RECEITAS') || finalCategory.includes('Salário') ? 'INCOME' : 'EXPENSE',
+            confidence: t.confianca
+          };
+        });
+      }
 
-        const handleAnalyze = async () => {
-          setIsAnalyzing(true);
-          try {
-            let allRawTransactions: TransactionInput[] = [];
+      setPreviewData(mappedPreview);
+      setStep('preview');
+    } catch (error) {
+      console.error("Falha na análise:", error);
+      alert("Houve um erro ao processar os arquivos. Verifique se é um CSV válido.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
-            // Process uploaded files
-            for (const file of files) {
-              const content = await readFileContent(file);
+  const handleConfirm = () => {
+    if (previewData.length > 0 && selectedAccountId) {
+      onImport(previewData, selectedAccountId);
+      setFiles([]);
+      setSelectedAccountId('');
+      setStep('upload');
+      setPreviewData([]);
+      onClose();
+    }
+  };
 
-              if (file.name.toLowerCase().endsWith('.csv')) {
-                const parsed = parseCSV(content);
-                allRawTransactions = [...allRawTransactions, ...parsed];
-              } else if (file.name.toLowerCase().endsWith('.ofx')) {
-                const parsed = parseOFX(content);
-                allRawTransactions = [...allRawTransactions, ...parsed];
-              } else {
-                console.warn('Formato não suportado:', file.name);
-                alert(`Formato .${file.name.split('.').pop()} não suportado. Use CSV ou OFX.`);
-              }
-            }
+  return (
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" >
+      <div className={`bg-white w-full ${step === 'preview' ? 'max-w-5xl' : 'max-w-2xl'} max-h-[90vh] flex flex-col rounded-[32px] shadow-2xl animate-in zoom-in-95 duration-200 transition-all overflow-hidden`}>
 
-            if (allRawTransactions.length === 0 && files.length > 0) {
-              throw new Error("Nenhuma transação encontrada. Verifique o formato dos arquivos.");
-            }
+        {/* Header */}
+        <div className="p-8 pb-4 flex justify-between items-center bg-white flex-shrink-0">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+              {step === 'upload' ? 'Importar Dados' : 'Conferência Inteligente'}
+              {step === 'preview' && <Sparkles size={20} className="text-purple-500 animate-pulse" />}
+            </h2>
+            <p className="text-sm text-slate-500 mt-1">
+              {step === 'upload' ? 'Escolha o método de importação' : 'Verifique a categorização realizada pela IA'}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400">
+            <X size={24} />
+          </button>
+        </div>
 
-            let mappedPreview: PreviewTransaction[] = [];
+        {step === 'upload' && (
+          <div className="px-8 flex gap-4 border-b border-slate-100">
+            <button
+              onClick={() => setTab('files')}
+              className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 ${tab === 'files' ? 'text-indigo-600 border-indigo-600' : 'text-slate-400 border-transparent'}`}
+            >
+              Arquivos (OFX, CSV)
+            </button>
+            <button
+              onClick={() => setTab('belvo')}
+              className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 flex items-center gap-2 ${tab === 'belvo' ? 'text-indigo-600 border-indigo-600' : 'text-slate-400 border-transparent'}`}
+            >
+              <Globe size={16} />
+              Open Finance
+              {!isPro && <Lock size={12} className="text-amber-500" />}
+            </button>
+          </div>
+        )}
 
-            if (allRawTransactions.length > 0) {
-              console.log("Chamando categorização IA...", allRawTransactions.length);
-              const result = await categorizeTransactions(allRawTransactions);
-              console.log("Resultado IA:", result);
-
-              mappedPreview = result.transacoes_categorizadas.map(t => {
-                let finalCategory = t.categoria_principal;
-
-                // Safety check: if AI returns error strings (hallucination or catch block), normalize them
-                const errorPattern = /err|fail|classificar|undefined|null/i;
-                if (!finalCategory || errorPattern.test(finalCategory) || finalCategory === 'OUTROS - Erro') {
-                  finalCategory = 'OUTROS';
-                }
-
-                return {
-                  id: t.id,
-                  date: t.data,
-                  description: t.descricao,
-                  amount: t.valor,
-                  category: finalCategory,
-                  subcategory: t.classificacao,
-                  type: finalCategory.includes('RECEITAS') || finalCategory.includes('Salário') ? 'INCOME' : 'EXPENSE',
-                  confidence: t.confianca
-                };
-              });
-            }
-
-            setPreviewData(mappedPreview);
-            setStep('preview');
-          } catch (error) {
-            console.error("Falha na análise:", error);
-            alert("Houve um erro ao processar os arquivos. Verifique se é um CSV válido.");
-          } finally {
-            setIsAnalyzing(false);
-          }
-        };
-
-        const handleConfirm = () => {
-          if (previewData.length > 0 && selectedAccountId) {
-            onImport(previewData, selectedAccountId);
-            setFiles([]);
-            setSelectedAccountId('');
-            setStep('upload');
-            setPreviewData([]);
-            onClose();
-          }
-        };
-
-        return(
-    <div className = "fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" >
-            <div className={`bg-white w-full ${step === 'preview' ? 'max-w-5xl' : 'max-w-2xl'} max-h-[90vh] flex flex-col rounded-[32px] shadow-2xl animate-in zoom-in-95 duration-200 transition-all overflow-hidden`}>
-
-              {/* Header */}
-              <div className="p-8 pb-4 flex justify-between items-center bg-white flex-shrink-0">
-                <div>
-                  <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                    {step === 'upload' ? 'Importar Dados' : 'Conferência Inteligente'}
-                    {step === 'preview' && <Sparkles size={20} className="text-purple-500 animate-pulse" />}
-                  </h2>
-                  <p className="text-sm text-slate-500 mt-1">
-                    {step === 'upload' ? 'Escolha o método de importação' : 'Verifique a categorização realizada pela IA'}
-                  </p>
-                </div>
-                <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400">
-                  <X size={24} />
-                </button>
-              </div>
-
-              {step === 'upload' && (
-                <div className="px-8 flex gap-4 border-b border-slate-100">
-                  <button
-                    onClick={() => setTab('files')}
-                    className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 ${tab === 'files' ? 'text-indigo-600 border-indigo-600' : 'text-slate-400 border-transparent'}`}
-                  >
-                    Arquivos (OFX, CSV)
+        <div className="flex-1 overflow-y-auto p-8 pt-6 custom-scrollbar">
+          {step === 'upload' ? (
+            tab === 'files' ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full">
+                {/* File Upload UI */}
+                <div
+                  className={`min-h-[250px] lg:h-full border-2 border-dashed rounded-3xl transition-all flex flex-col items-center justify-center p-6 text-center relative ${dragActive ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 bg-slate-50'}`}
+                  onDragEnter={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDragOver={handleDrag}
+                  onDrop={handleDrop}
+                >
+                  <input
+                    type="file"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    accept=".csv,.ofx,.pdf,.xml,.xlsx"
+                    multiple
+                    onChange={handleChange}
+                  />
+                  <div className="w-14 h-14 bg-white rounded-2xl shadow-sm flex items-center justify-center text-indigo-600 mb-4 pointer-events-none">
+                    <Upload size={28} />
+                  </div>
+                  <p className="text-base font-semibold text-slate-800 mb-1 pointer-events-none">Arraste seus arquivos</p>
+                  <p className="text-xs text-slate-500 mb-4 pointer-events-none">CSV, OFX, PDF, XML, XLSX</p>
+                  <button className="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 pointer-events-none">
+                    Selecionar Arquivos
                   </button>
-                  <button
-                    onClick={() => setTab('belvo')}
-                    className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 flex items-center gap-2 ${tab === 'belvo' ? 'text-indigo-600 border-indigo-600' : 'text-slate-400 border-transparent'}`}
-                  >
-                    <Globe size={16} />
-                    Open Finance
-                    {!isPro && <Lock size={12} className="text-amber-500" />}
-                  </button>
                 </div>
-              )}
 
-              <div className="flex-1 overflow-y-auto p-8 pt-6 custom-scrollbar">
-                {step === 'upload' ? (
-                  tab === 'files' ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full">
-                      {/* File Upload UI */}
-                      <div
-                        className={`min-h-[250px] lg:h-full border-2 border-dashed rounded-3xl transition-all flex flex-col items-center justify-center p-6 text-center relative ${dragActive ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 bg-slate-50'}`}
-                        onDragEnter={handleDrag}
-                        onDragLeave={handleDrag}
-                        onDragOver={handleDrag}
-                        onDrop={handleDrop}
+                {/* Config UI */}
+                <div className="flex flex-col h-full">
+                  <div className="mb-6">
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Vincular à Conta</label>
+                    <div className="relative">
+                      <select
+                        value={selectedAccountId}
+                        onChange={(e) => setSelectedAccountId(e.target.value)}
+                        className="w-full appearance-none bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium"
                       >
-                        <input
-                          type="file"
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                          accept=".csv,.ofx,.pdf,.xml,.xlsx"
-                          multiple
-                          onChange={handleChange}
-                        />
-                        <div className="w-14 h-14 bg-white rounded-2xl shadow-sm flex items-center justify-center text-indigo-600 mb-4 pointer-events-none">
-                          <Upload size={28} />
-                        </div>
-                        <p className="text-base font-semibold text-slate-800 mb-1 pointer-events-none">Arraste seus arquivos</p>
-                        <p className="text-xs text-slate-500 mb-4 pointer-events-none">CSV, OFX, PDF, XML, XLSX</p>
-                        <button className="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 pointer-events-none">
-                          Selecionar Arquivos
-                        </button>
-                      </div>
-
-                      {/* Config UI */}
-                      <div className="flex flex-col h-full">
-                        <div className="mb-6">
-                          <label className="block text-sm font-bold text-slate-700 mb-2">Vincular à Conta</label>
-                          <div className="relative">
-                            <select
-                              value={selectedAccountId}
-                              onChange={(e) => setSelectedAccountId(e.target.value)}
-                              className="w-full appearance-none bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium"
-                            >
-                              <option value="" disabled>Selecione uma conta...</option>
-                              {accounts.length === 0 && (
-                                <option value="AUTO_CREATE">✨ Criar conta automaticamente</option>
-                              )}
-                              {accounts.map(account => (
-                                <option key={account.id} value={account.id}>
-                                  {account.name} ({account.bankName})
-                                </option>
-                              ))}
-                            </select>
-                            <Wallet className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
-                          </div>
-                        </div>
-
-                        <div className="flex-1 space-y-2 mb-4 pr-2 overflow-y-auto max-h-[150px]">
-                          {files.map((file, index) => (
-                            <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
-                              <span className="text-sm font-medium text-slate-700 truncate">{file.name}</span>
-                              <button onClick={() => removeFile(index)} className="p-1 text-slate-400 hover:text-rose-500"><Trash2 size={14} /></button>
-                            </div>
-                          ))}
-                        </div>
-
-                        <button
-                          onClick={handleAnalyze}
-                          disabled={files.length === 0 || !selectedAccountId || isAnalyzing}
-                          className={`w-full mt-auto py-3 font-bold rounded-xl disabled:opacity-50 transition-all flex items-center justify-center gap-2 ${isFree ? 'bg-slate-800 text-white hover:bg-slate-900' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
-                        >
-                          {isAnalyzing ? <Loader2 size={18} className="animate-spin" /> : (isFree ? <FileText size={18} /> : <Sparkles size={18} />)}
-                          <span>
-                            {isAnalyzing ? 'Processando...' : (isFree ? 'Importar Arquivo (Básico)' : 'Analisar com IA')}
-                          </span>
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    /* Belvo Open Finance UI */
-                    <div className="flex flex-col items-center justify-center py-12 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
-                      {!isPro ? (
-                        <div className="max-w-md mx-auto p-4">
-                          <div className="w-20 h-20 bg-amber-100 rounded-[28px] flex items-center justify-center text-amber-600 mb-6 font-bold mx-auto">
-                            <Lock size={40} />
-                          </div>
-                          <h3 className="text-xl font-bold text-slate-800 mb-2">Recurso Pro</h3>
-                          <p className="text-sm text-slate-500 mb-8">
-                            A sincronização automática via Open Finance é exclusiva para assinantes Pro. Conecte seus bancos automaticamente e nunca mais importe arquivos manualmente.
-                          </p>
-                          <button className="px-8 py-3 bg-slate-900 text-white font-bold rounded-2xl hover:bg-black transition-all shadow-xl">
-                            Fazer Upgrade para Pro
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="w-20 h-20 bg-indigo-100 rounded-[28px] flex items-center justify-center text-indigo-600 mb-6 font-bold">
-                            <Globe size={40} />
-                          </div>
-                          <h3 className="text-xl font-bold text-slate-800 mb-2">Conexão via Open Finance</h3>
-                          <p className="text-sm text-slate-500 max-w-sm mb-8">
-                            Conecte sua conta bancária de forma segura e deixe o FiFlow importar e categorizar suas transações automaticamente.
-                          </p>
-                          <div className="w-full max-w-sm space-y-4">
-                            <div className="text-left">
-                              <label className="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Vincular à Conta FiFlow</label>
-                              <div className="relative">
-                                <select
-                                  value={selectedAccountId}
-                                  onChange={(e) => setSelectedAccountId(e.target.value)}
-                                  className="w-full appearance-none bg-white border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium"
-                                >
-                                  <option value="" disabled>Selecione uma conta...</option>
-                                  {accounts.length === 0 && (
-                                    <option value="AUTO_CREATE">✨ Criar conta automaticamente</option>
-                                  )}
-                                  {accounts.map(account => (
-                                    <option key={account.id} value={account.id}>
-                                      {account.name} ({account.bankName})
-                                    </option>
-                                  ))}
-                                </select>
-                                <Wallet className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
-                              </div>
-                            </div>
-                            <button
-                              onClick={handleOpenBelvo}
-                              disabled={!selectedAccountId || isBelvoLoading}
-                              className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-black transition-all shadow-xl flex items-center justify-center gap-2 disabled:opacity-50"
-                            >
-                              {isBelvoLoading ? <Loader2 size={20} className="animate-spin" /> : <LinkIcon size={20} />}
-                              <span>{isBelvoLoading ? 'Iniciando...' : 'Conectar Nova Instituição'}</span>
-                            </button>
-                          </div>
-                          <p className="text-[10px] text-slate-400 mt-6 flex items-center gap-1">
-                            <CheckCircle2 size={12} className="text-emerald-500" />
-                            Conexão criptografada via protocolo Belvo Open Finance
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  )
-                ) : (
-                  /* Preview Table UI */
-                  <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                    <table className="w-full text-left">
-                      <thead className="bg-slate-50/80 border-b border-slate-200">
-                        <tr>
-                          <th className="px-5 py-4 text-xs font-bold text-slate-500 uppercase">Data</th>
-                          <th className="px-5 py-4 text-xs font-bold text-slate-500 uppercase">Descrição</th>
-                          <th className="px-5 py-4 text-xs font-bold text-slate-500 uppercase">Categoria</th>
-                          <th className="px-5 py-4 text-xs font-bold text-slate-500 uppercase text-right">Valor</th>
-                          <th className="px-5 py-4 text-xs font-bold text-slate-500 uppercase text-center">Confiança</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {previewData.map((item) => (
-                          <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="px-5 py-4 text-sm text-slate-600 font-medium whitespace-nowrap">{item.date}</td>
-                            <td className="px-5 py-4 text-sm text-slate-800 font-bold">{item.description}</td>
-                            <td className="px-5 py-4">
-                              <span className="text-xs font-extrabold text-slate-700 uppercase">{item.category}</span>
-                            </td>
-                            <td className={`px-5 py-4 text-sm font-bold text-right whitespace-nowrap ${item.type === 'INCOME' ? 'text-emerald-600' : 'text-slate-900'}`}>
-                              {item.type === 'INCOME' ? '+' : '-'} R$ {item.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </td>
-                            <td className="px-5 py-4 text-center">
-                              <div className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${item.confidence === 'alta' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                                {item.confidence === 'alta' ? 'A' : 'B'}
-                              </div>
-                            </td>
-                          </tr>
+                        <option value="" disabled>Selecione uma conta...</option>
+                        {accounts.length === 0 && (
+                          <option value="AUTO_CREATE">✨ Criar conta automaticamente</option>
+                        )}
+                        {accounts.map(account => (
+                          <option key={account.id} value={account.id}>
+                            {account.name} ({account.bankName})
+                          </option>
                         ))}
-                      </tbody>
-                    </table>
+                      </select>
+                      <Wallet className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                    </div>
                   </div>
-                )}
-              </div>
 
-              {/* Footer */}
-              <div className="p-6 bg-slate-50 border-t border-slate-100 rounded-b-[32px] flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center text-indigo-600">
-                    <Sparkles size={16} />
+                  <div className="flex-1 space-y-2 mb-4 pr-2 overflow-y-auto max-h-[150px]">
+                    {files.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <span className="text-sm font-medium text-slate-700 truncate">{file.name}</span>
+                        <button onClick={() => removeFile(index)} className="p-1 text-slate-400 hover:text-rose-500"><Trash2 size={14} /></button>
+                      </div>
+                    ))}
                   </div>
-                  <p className="text-[10px] text-slate-600 max-w-[300px]">
-                    Análise realizada pelo motor de IA do FiFlow. Verifique os dados antes de confirmar a importação.
-                  </p>
+
+                  <button
+                    onClick={handleAnalyze}
+                    disabled={files.length === 0 || !selectedAccountId || isAnalyzing}
+                    className={`w-full mt-auto py-3 font-bold rounded-xl disabled:opacity-50 transition-all flex items-center justify-center gap-2 ${isFree ? 'bg-slate-800 text-white hover:bg-slate-900' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                  >
+                    {isAnalyzing ? <Loader2 size={18} className="animate-spin" /> : (isFree ? <FileText size={18} /> : <Sparkles size={18} />)}
+                    <span>
+                      {isAnalyzing ? 'Processando...' : (isFree ? 'Importar Arquivo (Básico)' : 'Analisar com IA')}
+                    </span>
+                  </button>
                 </div>
-
-                {step === 'preview' && (
-                  <div className="flex gap-3">
-                    <button onClick={() => setStep('upload')} className="px-6 py-3 text-slate-500 font-bold hover:bg-white rounded-xl transition-all">Cancelar</button>
-                    <button onClick={handleConfirm} className="px-8 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg active:scale-95">Confirmar Importação</button>
+              </div>
+            ) : (
+              /* Belvo Open Finance UI */
+              <div className="flex flex-col items-center justify-center py-12 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+                {!isPro ? (
+                  <div className="max-w-md mx-auto p-4">
+                    <div className="w-20 h-20 bg-amber-100 rounded-[28px] flex items-center justify-center text-amber-600 mb-6 font-bold mx-auto">
+                      <Lock size={40} />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Recurso Pro</h3>
+                    <p className="text-sm text-slate-500 mb-8">
+                      A sincronização automática via Open Finance é exclusiva para assinantes Pro. Conecte seus bancos automaticamente e nunca mais importe arquivos manualmente.
+                    </p>
+                    <button className="px-8 py-3 bg-slate-900 text-white font-bold rounded-2xl hover:bg-black transition-all shadow-xl">
+                      Fazer Upgrade para Pro
+                    </button>
                   </div>
+                ) : (
+                  <>
+                    <div className="w-20 h-20 bg-indigo-100 rounded-[28px] flex items-center justify-center text-indigo-600 mb-6 font-bold">
+                      <Globe size={40} />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Conexão via Open Finance</h3>
+                    <p className="text-sm text-slate-500 max-w-sm mb-8">
+                      Conecte sua conta bancária de forma segura e deixe o FiFlow importar e categorizar suas transações automaticamente.
+                    </p>
+                    <div className="w-full max-w-sm space-y-4">
+                      <div className="text-left">
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Vincular à Conta FiFlow</label>
+                        <div className="relative">
+                          <select
+                            value={selectedAccountId}
+                            onChange={(e) => setSelectedAccountId(e.target.value)}
+                            className="w-full appearance-none bg-white border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium"
+                          >
+                            <option value="" disabled>Selecione uma conta...</option>
+                            {accounts.length === 0 && (
+                              <option value="AUTO_CREATE">✨ Criar conta automaticamente</option>
+                            )}
+                            {accounts.map(account => (
+                              <option key={account.id} value={account.id}>
+                                {account.name} ({account.bankName})
+                              </option>
+                            ))}
+                          </select>
+                          <Wallet className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleOpenBelvo}
+                        disabled={!selectedAccountId || isBelvoLoading}
+                        className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-black transition-all shadow-xl flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {isBelvoLoading ? <Loader2 size={20} className="animate-spin" /> : <LinkIcon size={20} />}
+                        <span>{isBelvoLoading ? 'Iniciando...' : 'Conectar Nova Instituição'}</span>
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-6 flex items-center gap-1">
+                      <CheckCircle2 size={12} className="text-emerald-500" />
+                      Conexão criptografada via protocolo Belvo Open Finance
+                    </p>
+                  </>
                 )}
               </div>
+            )
+          ) : (
+            /* Preview Table UI */
+            <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50/80 border-b border-slate-200">
+                  <tr>
+                    <th className="px-5 py-4 text-xs font-bold text-slate-500 uppercase">Data</th>
+                    <th className="px-5 py-4 text-xs font-bold text-slate-500 uppercase">Descrição</th>
+                    <th className="px-5 py-4 text-xs font-bold text-slate-500 uppercase">Categoria</th>
+                    <th className="px-5 py-4 text-xs font-bold text-slate-500 uppercase text-right">Valor</th>
+                    <th className="px-5 py-4 text-xs font-bold text-slate-500 uppercase text-center">Confiança</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {previewData.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-5 py-4 text-sm text-slate-600 font-medium whitespace-nowrap">{item.date}</td>
+                      <td className="px-5 py-4 text-sm text-slate-800 font-bold">{item.description}</td>
+                      <td className="px-5 py-4">
+                        <span className="text-xs font-extrabold text-slate-700 uppercase">{item.category}</span>
+                      </td>
+                      <td className={`px-5 py-4 text-sm font-bold text-right whitespace-nowrap ${item.type === 'INCOME' ? 'text-emerald-600' : 'text-slate-900'}`}>
+                        {item.type === 'INCOME' ? '+' : '-'} R$ {item.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-5 py-4 text-center">
+                        <div className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${item.confidence === 'alta' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                          {item.confidence === 'alta' ? 'A' : 'B'}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-6 bg-slate-50 border-t border-slate-100 rounded-b-[32px] flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center text-indigo-600">
+              <Sparkles size={16} />
+            </div>
+            <p className="text-[10px] text-slate-600 max-w-[300px]">
+              Análise realizada pelo motor de IA do FiFlow. Verifique os dados antes de confirmar a importação.
+            </p>
+          </div>
+
+          {step === 'preview' && (
+            <div className="flex gap-3">
+              <button onClick={() => setStep('upload')} className="px-6 py-3 text-slate-500 font-bold hover:bg-white rounded-xl transition-all">Cancelar</button>
+              <button onClick={handleConfirm} className="px-8 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg active:scale-95">Confirmar Importação</button>
+            </div>
+          )}
+        </div>
+      </div>
     </div >
   );
 };
