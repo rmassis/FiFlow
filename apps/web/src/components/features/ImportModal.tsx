@@ -27,17 +27,6 @@ interface PreviewTransaction {
   confidence: 'alta' | 'media' | 'baixa';
 }
 
-const MOCK_RAW_TRANSACTIONS: TransactionInput[] = [
-  { id: '101', data: '10/03/2025', descricao: 'UBER *TRIP SAO PAULO BR', valor: 24.90, banco: 'Nubank' },
-  { id: '102', data: '10/03/2025', descricao: 'RESTAURANTE COCO BAMBU', valor: 156.00, banco: 'Nubank' },
-  { id: '103', data: '11/03/2025', descricao: 'DROGASIL SAO PAULO', valor: 89.45, banco: 'Nubank' },
-  { id: '104', data: '12/03/2025', descricao: 'SALARIO MENSAL EMPRESA X', valor: 5200.00, banco: 'Nubank' },
-  { id: '105', data: '12/03/2025', descricao: 'NETFLIX.COM SAO PAULO', valor: 55.90, banco: 'Nubank' },
-  { id: '106', data: '13/03/2025', descricao: 'POSTO IPIRANGA 123', valor: 240.00, banco: 'Nubank' },
-  { id: '107', data: '14/03/2025', descricao: 'PIX ENVIADO JOAO SILVA', valor: 150.00, banco: 'Nubank' },
-  { id: '108', data: '14/03/2025', descricao: 'AMAZON MARKETPLACE', valor: 89.90, banco: 'Nubank' },
-];
-
 const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) => {
   const { accounts, addAccount } = useFinance();
   const { isPro, isFree } = useSubscription();
@@ -48,104 +37,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [previewData, setPreviewData] = useState<PreviewTransaction[]>([]);
-  // ... inside ImportModal component ...
+  const [isBelvoLoading, setIsBelvoLoading] = useState(false);
   const [progress, setProgress] = useState(0);
-
-  // ... (inside handleAnalyze) ...
-
-  if (allRawTransactions.length > 0) {
-    console.log("Chamando categorização IA...", allRawTransactions.length);
-
-    // BATCH PROCESSING LOGIC
-    const BATCH_SIZE = 30;
-    const totalTransactions = allRawTransactions.length;
-    let processedCount = 0;
-    let allCategorized: any[] = [];
-
-    // Split into chunks
-    for (let i = 0; i < totalTransactions; i += BATCH_SIZE) {
-      const chunk = allRawTransactions.slice(i, i + BATCH_SIZE);
-
-      // Update Progress (start of batch)
-      const currentProgress = Math.round((processedCount / totalTransactions) * 100);
-      setProgress(currentProgress);
-
-      // Process chunk
-      const result = await categorizeTransactions(chunk);
-      allCategorized = [...allCategorized, ...result.transacoes_categorizadas];
-
-      processedCount += chunk.length;
-
-      // Update Progress (end of batch)
-      setProgress(Math.round((processedCount / totalTransactions) * 100));
-
-      // Small delay to prevent rate limiting and allow UI update
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-
-    // Finish
-    setProgress(100);
-
-    mappedPreview = allCategorized.map(t => {
-      let finalCategory = t.categoria_principal;
-
-      // Safety check: if AI returns error strings (hallucination or catch block), normalize them
-      const errorPattern = /err|fail|classificar|undefined|null/i;
-      if (!finalCategory || errorPattern.test(finalCategory) || finalCategory === 'OUTROS - Erro') {
-        finalCategory = 'OUTROS';
-      }
-
-      // Determine High Level Type (Income/Expense)
-      let finalType: 'INCOME' | 'EXPENSE' = 'EXPENSE';
-
-      if (finalCategory.includes('RECEITAS') || finalCategory.includes('Salário') || finalCategory.includes('Investimento')) {
-        finalType = 'INCOME';
-      } else {
-        // Fallback to CSV hint
-        // @ts-ignore
-        const csvHint = allRawTransactions.find(r => r.id === t.id)?.tipo_sugerido;
-        if (csvHint === 'INCOME') finalType = 'INCOME';
-      }
-
-      return {
-        id: t.id,
-        date: t.data,
-        description: t.descricao,
-        amount: t.valor,
-        category: finalCategory,
-        subcategory: t.classificacao,
-        type: finalType,
-        confidence: t.confianca
-      };
-    });
-  }
-
-  setPreviewData(mappedPreview);
-  setStep('preview');
-  setProgress(0); // Reset for next time
-
-  // ... (inside JSX) ...
-
-  <button
-    onClick={handleAnalyze}
-    disabled={files.length === 0 || !selectedAccountId || isAnalyzing}
-    className={`w-full mt-auto py-3 font-bold rounded-xl disabled:opacity-50 transition-all flex items-center justify-center gap-2 relative overflow-hidden ${isFree ? 'bg-slate-800 text-white hover:bg-slate-900' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
-  >
-    {/* Progress Bar Background */}
-    {isAnalyzing && (
-      <div
-        className="absolute left-0 top-0 bottom-0 bg-white/20 transition-all duration-300 ease-out"
-        style={{ width: `${progress}%` }}
-      />
-    )}
-
-    <div className="relative z-10 flex items-center gap-2">
-      {isAnalyzing ? <Loader2 size={18} className="animate-spin" /> : (isFree ? <FileText size={18} /> : <Sparkles size={18} />)}
-      <span>
-        {isAnalyzing ? `Analisando... ${progress}%` : (isFree ? 'Importar Arquivo (Básico)' : 'Analisar com IA')}
-      </span>
-    </div>
-  </button>
 
   // Auto-select "Create automatically" if no accounts exist
   useEffect(() => {
@@ -397,18 +290,9 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
           isIncome = true;
         }
       } else {
-        // Heuristic: if amount string had no minus sign, maybe it is income? 
-        // But in credit card statements, expenses are often positive numbers.
-        // We rely on AI for default, but if rawAmount has "-", it is definitely negative (which means expense usually, 
-        // BUT in bank statement logic: -100 = money out = expense. +100 = money in = income).
-        // So if we parsed a negative number, let's trust that sign logic for Bank Statements (Checking).
-        // For Credit Card details, usually positive = expense.
-        // Let's stick to: if we parsed a negative number, it's an EXPENSE (money leaving).
-        // If positive, it MIGHT be income, or just how csv lists it.
-        // Let's assume Checking Account Logic: - = Expense, + = Income.
+        // Checking Account Logic: - = Expense, + = Income.
         if (amountVal > 0 && !rawType) {
-          // Check if user selected "Credit Card" account? We don't know yet.
-          // Let's leave false and let AI decide, UNLESS we detected a "Type" column.
+          // We'll let AI or user decide, but default to current logic
         }
       }
 
@@ -423,7 +307,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
         valor: Math.abs(amountVal),
         banco: 'Importado',
         // Pass hints to AI or UI
-        // @ts-ignore - extending the input type temporarily or just handling in map
+        // @ts-ignore
         tipo_sugerido: isIncome ? 'INCOME' : 'EXPENSE'
       });
     }
@@ -473,7 +357,9 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
         data: formattedDate,
         descricao: memoStr,
         valor: Math.abs(amount), // We store absolute value for the categorization/UI, type is derived later
-        banco: 'Importado (OFX)'
+        banco: 'Importado (OFX)',
+        // @ts-ignore
+        tipo_sugerido: amount > 0 ? 'INCOME' : 'EXPENSE'
       });
     }
 
