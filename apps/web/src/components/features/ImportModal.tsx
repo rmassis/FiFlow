@@ -443,11 +443,13 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
             if (csvHint === 'INCOME') finalType = 'INCOME';
           }
 
+          const original = allRawTransactions.find(r => r.id === t.id);
+
           return {
             id: t.id,
-            date: t.data,
-            description: t.descricao,
-            amount: t.valor,
+            date: original?.data || new Date().toLocaleDateString('pt-BR'),
+            description: original?.descricao || t.descricao || 'Sem descrição',
+            amount: original?.valor || 0,
             category: finalCategory,
             subcategory: t.classificacao,
             type: finalType,
