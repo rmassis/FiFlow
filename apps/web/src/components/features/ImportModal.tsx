@@ -48,7 +48,104 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [previewData, setPreviewData] = useState<PreviewTransaction[]>([]);
-  const [isBelvoLoading, setIsBelvoLoading] = useState(false);
+  // ... inside ImportModal component ...
+  const [progress, setProgress] = useState(0);
+
+  // ... (inside handleAnalyze) ...
+
+  if (allRawTransactions.length > 0) {
+    console.log("Chamando categorização IA...", allRawTransactions.length);
+
+    // BATCH PROCESSING LOGIC
+    const BATCH_SIZE = 30;
+    const totalTransactions = allRawTransactions.length;
+    let processedCount = 0;
+    let allCategorized: any[] = [];
+
+    // Split into chunks
+    for (let i = 0; i < totalTransactions; i += BATCH_SIZE) {
+      const chunk = allRawTransactions.slice(i, i + BATCH_SIZE);
+
+      // Update Progress (start of batch)
+      const currentProgress = Math.round((processedCount / totalTransactions) * 100);
+      setProgress(currentProgress);
+
+      // Process chunk
+      const result = await categorizeTransactions(chunk);
+      allCategorized = [...allCategorized, ...result.transacoes_categorizadas];
+
+      processedCount += chunk.length;
+
+      // Update Progress (end of batch)
+      setProgress(Math.round((processedCount / totalTransactions) * 100));
+
+      // Small delay to prevent rate limiting and allow UI update
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    // Finish
+    setProgress(100);
+
+    mappedPreview = allCategorized.map(t => {
+      let finalCategory = t.categoria_principal;
+
+      // Safety check: if AI returns error strings (hallucination or catch block), normalize them
+      const errorPattern = /err|fail|classificar|undefined|null/i;
+      if (!finalCategory || errorPattern.test(finalCategory) || finalCategory === 'OUTROS - Erro') {
+        finalCategory = 'OUTROS';
+      }
+
+      // Determine High Level Type (Income/Expense)
+      let finalType: 'INCOME' | 'EXPENSE' = 'EXPENSE';
+
+      if (finalCategory.includes('RECEITAS') || finalCategory.includes('Salário') || finalCategory.includes('Investimento')) {
+        finalType = 'INCOME';
+      } else {
+        // Fallback to CSV hint
+        // @ts-ignore
+        const csvHint = allRawTransactions.find(r => r.id === t.id)?.tipo_sugerido;
+        if (csvHint === 'INCOME') finalType = 'INCOME';
+      }
+
+      return {
+        id: t.id,
+        date: t.data,
+        description: t.descricao,
+        amount: t.valor,
+        category: finalCategory,
+        subcategory: t.classificacao,
+        type: finalType,
+        confidence: t.confianca
+      };
+    });
+  }
+
+  setPreviewData(mappedPreview);
+  setStep('preview');
+  setProgress(0); // Reset for next time
+
+  // ... (inside JSX) ...
+
+  <button
+    onClick={handleAnalyze}
+    disabled={files.length === 0 || !selectedAccountId || isAnalyzing}
+    className={`w-full mt-auto py-3 font-bold rounded-xl disabled:opacity-50 transition-all flex items-center justify-center gap-2 relative overflow-hidden ${isFree ? 'bg-slate-800 text-white hover:bg-slate-900' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+  >
+    {/* Progress Bar Background */}
+    {isAnalyzing && (
+      <div
+        className="absolute left-0 top-0 bottom-0 bg-white/20 transition-all duration-300 ease-out"
+        style={{ width: `${progress}%` }}
+      />
+    )}
+
+    <div className="relative z-10 flex items-center gap-2">
+      {isAnalyzing ? <Loader2 size={18} className="animate-spin" /> : (isFree ? <FileText size={18} /> : <Sparkles size={18} />)}
+      <span>
+        {isAnalyzing ? `Analisando... ${progress}%` : (isFree ? 'Importar Arquivo (Básico)' : 'Analisar com IA')}
+      </span>
+    </div>
+  </button>
 
   // Auto-select "Create automatically" if no accounts exist
   useEffect(() => {
@@ -412,10 +509,32 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
 
       if (allRawTransactions.length > 0) {
         console.log("Chamando categorização IA...", allRawTransactions.length);
-        const result = await categorizeTransactions(allRawTransactions);
-        console.log("Resultado IA:", result);
 
-        mappedPreview = result.transacoes_categorizadas.map(t => {
+        const BATCH_SIZE = 30;
+        const totalTransactions = allRawTransactions.length;
+        let processedCount = 0;
+        let allCategorized: any[] = [];
+
+        for (let i = 0; i < totalTransactions; i += BATCH_SIZE) {
+          const chunk = allRawTransactions.slice(i, i + BATCH_SIZE);
+
+          const currentProgress = Math.round((processedCount / totalTransactions) * 100);
+          setProgress(currentProgress);
+
+          // Process chunk
+          const result = await categorizeTransactions(chunk);
+          allCategorized = [...allCategorized, ...result.transacoes_categorizadas];
+
+          processedCount += chunk.length;
+          setProgress(Math.round((processedCount / totalTransactions) * 100));
+
+          // Small delay for UI and rate limiting
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+
+        setProgress(100);
+
+        mappedPreview = allCategorized.map(t => {
           let finalCategory = t.categoria_principal;
 
           // Safety check: if AI returns error strings (hallucination or catch block), normalize them
@@ -425,10 +544,6 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
           }
 
           // Determine High Level Type (Income/Expense)
-          // Priority: AI Decision > CSV Hint > Heuristic
-          // Actually, if CSV has explicit "Crédito", we should trust it over AI potentially?
-          // But let's let AI override if it detects "Salário" category.
-
           let finalType: 'INCOME' | 'EXPENSE' = 'EXPENSE';
 
           if (finalCategory.includes('RECEITAS') || finalCategory.includes('Salário') || finalCategory.includes('Investimento')) {
@@ -455,9 +570,11 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
 
       setPreviewData(mappedPreview);
       setStep('preview');
+      setProgress(0);
     } catch (error) {
       console.error("Falha na análise:", error);
       alert("Houve um erro ao processar os arquivos. Verifique se é um CSV válido.");
+      setProgress(0);
     } finally {
       setIsAnalyzing(false);
     }
@@ -578,13 +695,23 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
                   <button
                     onClick={handleAnalyze}
                     disabled={files.length === 0 || !selectedAccountId || isAnalyzing}
-                    className={`w-full mt-auto py-3 font-bold rounded-xl disabled:opacity-50 transition-all flex items-center justify-center gap-2 ${isFree ? 'bg-slate-800 text-white hover:bg-slate-900' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                    className={`w-full mt-auto py-3 font-bold rounded-xl disabled:opacity-50 transition-all flex items-center justify-center gap-2 relative overflow-hidden ${isFree ? 'bg-slate-800 text-white hover:bg-slate-900' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
                   >
-                    {isAnalyzing ? <Loader2 size={18} className="animate-spin" /> : (isFree ? <FileText size={18} /> : <Sparkles size={18} />)}
-                    <span>
-                      {isAnalyzing ? 'Processando...' : (isFree ? 'Importar Arquivo (Básico)' : 'Analisar com IA')}
-                    </span>
+                    {isAnalyzing && (
+                      <div
+                        className="absolute left-0 top-0 bottom-0 bg-white/20 transition-all duration-300 ease-out"
+                        style={{ width: `${progress}%` }}
+                      />
+                    )}
+
+                    <div className="relative z-10 flex items-center gap-2">
+                      {isAnalyzing ? <Loader2 size={18} className="animate-spin" /> : (isFree ? <FileText size={18} /> : <Sparkles size={18} />)}
+                      <span>
+                        {isAnalyzing ? `Analisando... ${progress}%` : (isFree ? 'Importar Arquivo (Básico)' : 'Analisar com IA')}
+                      </span>
+                    </div>
                   </button>
+
                 </div>
               </div>
             ) : (
