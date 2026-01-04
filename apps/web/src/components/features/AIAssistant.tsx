@@ -1,17 +1,17 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, X, Sparkles, MessageCircle, Play, CheckCircle2 } from 'lucide-react';
-import { processUserCommand } from '../../services/aiAutopilotService';
+import { unifiedAIService, UnifiedResponse } from '../../services/unifiedAIService';
 import { useFinance } from '../../contexts/FinanceContext';
 import { useSubscription } from '../../contexts/SubscriptionContext';
 import { ChatMessage } from '../../types';
 
 const AIAssistant: React.FC = () => {
-  const { transactions = [], budgets = [], goals = [], categories = [], updateBudget, addGoal, addTransaction } = useFinance();
+  const { transactions = [], budgets = [], goals = [], categories = [], updateBudget, addGoal, addTransaction, addCategory } = useFinance();
   const { isFree } = useSubscription();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'model', text: 'Olá! Sou seu Autopilot Financeiro. Posso criar orçamentos, lançar gastos ou analisar suas finanças. O que manda hoje?', timestamp: new Date() }
+    { role: 'model', text: 'Olá! Sou seu Autopilot Financeiro Unificado. Posso criar orçamentos, lançar gastos ou analisar suas finanças. O que manda hoje?', timestamp: new Date() }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -26,6 +26,23 @@ const AIAssistant: React.FC = () => {
   const handleAction = async (action: any) => {
     try {
       switch (action.type) {
+        case 'CREATE_CATEGORY':
+          try {
+            // Verify if exists again to be safe
+            const existingCat = categories.find(c => c.name.toLowerCase() === action.payload.name.toLowerCase());
+            if (existingCat) {
+              return true; // Already exists, consider done
+            }
+            await addCategory({
+              name: action.payload.name,
+              icon: 'Circle', // Default icon
+              color: '#3B82F6' // Default color (Blue)
+            });
+            return true;
+          } catch (e) {
+            console.error("Error creating category:", e);
+            return false;
+          }
         case 'CREATE_BUDGET':
           // Find category ID by name
           const catName = action.payload.category;
@@ -78,16 +95,30 @@ const AIAssistant: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const response = await processUserCommand(input, {
-        transactions,
-        budgets,
-        categories,
-        goals
-      }, messages);
+      const response = await unifiedAIService.processChat(
+        input,
+        {
+          transactions,
+          budgets,
+          categories,
+          goals
+        },
+        // Map current messages to history
+        messages.map(m => ({
+          role: m.role as 'user' | 'model',
+          text: m.text,
+          timestamp: m.timestamp
+        }))
+      );
 
-      const aiMsg: ChatMessage = { role: 'model', text: response.message, timestamp: new Date() };
+      const aiMsg: ChatMessage = {
+        role: 'model',
+        text: response.message || "Comando processado.",
+        timestamp: new Date()
+      };
       setMessages(prev => [...prev, aiMsg]);
 
+      // Handle Action if present
       if (response.action) {
         const success = await handleAction(response.action);
         if (success) {
@@ -99,7 +130,7 @@ const AIAssistant: React.FC = () => {
         } else {
           setMessages(prev => [...prev, {
             role: 'model',
-            text: '⚠️ Tentei executar a ação, mas encontrei um problema (talvez a categoria não exista?).',
+            text: '⚠️ Tentei executar a ação, mas encontrei um problema.',
             timestamp: new Date()
           }]);
         }

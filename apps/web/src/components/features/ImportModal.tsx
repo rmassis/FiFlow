@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useFinance } from '../../contexts/FinanceContext';
 import { useSubscription } from '../../contexts/SubscriptionContext';
-import { categorizeTransactions, TransactionInput } from '../../services/categorizationAgent';
+import { unifiedAIService, TransactionInput } from '../../services/unifiedAIService';
 import { belvoService } from '../../services/belvoService';
 
 interface ImportModalProps {
@@ -28,7 +28,7 @@ interface PreviewTransaction {
 }
 
 const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) => {
-  const { accounts, addAccount, transactions, addTransaction } = useFinance();
+  const { accounts, addAccount, transactions, addTransaction, categories } = useFinance();
   const { isPro, isFree } = useSubscription();
   const [tab, setTab] = useState<'files' | 'belvo'>('files');
   const [step, setStep] = useState<'upload' | 'preview'>('upload');
@@ -408,7 +408,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
           setProgress(currentProgress);
 
           // Process chunk
-          const result = await categorizeTransactions(chunk);
+          const result = await unifiedAIService.categorizeBatch(chunk, categories);
           allCategorized = [...allCategorized, ...result.transacoes_categorizadas];
 
           processedCount += chunk.length;
