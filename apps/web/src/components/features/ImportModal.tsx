@@ -247,8 +247,14 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
         amountVal = parseFloat(brFormat);
       }
 
-      // Final check: if still NaN, skip this row (it's likely garbage or a second header)
+      // Final check: if still NaN, skip this row
       if (isNaN(amountVal)) continue;
+
+      // STRICT HEADER CHECK: If the date column value is literally "Data", "Date", "Dt", skip it.
+      // This is necessary because sometimes the regex parse might interpret "Valor" as 0 or similar if aggressive.
+      // And we want to avoid showing the header as a transaction.
+      if (rawDate && /^(data|date|dt|dia)$/i.test(rawDate)) continue;
+      if (rawDesc && /^(descrição|desc|historico|lançamento|lancamento)$/i.test(rawDesc)) continue;
 
       parsedData.push({
         id: `import-${Date.now()}-${i}`,
@@ -276,30 +282,17 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
         } else {
           // TODO: Implement OFX parsing
           console.warn('Formato não suportado ainda, usando mock para este arquivo:', file.name);
-          // Fallback to mock only if non-csv (or show error)
-          // For now, let's just alert
           alert(`Formato .${file.name.split('.').pop()} ainda não implementado. Por favor use CSV.`);
         }
       }
 
       if (allRawTransactions.length === 0 && files.length > 0 && files[0].name.endsWith('.csv')) {
-        // If CSV parsing failed to yield rows
         throw new Error("Nenhuma transação encontrada no CSV. Verifique o formato.");
       }
 
-      // If no files parsed (e.g. only OFX provided and skipped), fallback to mock ONLY if debugging or requested? 
-      // User requested "corrija", implies they want REAL data. 
-      // If allRawTransactions is empty but files exist, we should probably warn.
-
       if (allRawTransactions.length === 0) {
-        // Fallback for demo purposes if nothing parsed, but warn user
         console.log("Nenhuma transação parseada, impossível analisar.");
         if (files.length === 0) {
-          // If no files, maybe use mock for demo (original behavior)?
-          // But user said "import area not working", so they uploaded files.
-          // Let's assume they want real data.
-          // However, to keep "demo" alive if they just click analyze without files (though button is disabled),
-          // we keep the mock logic ONLY if files are empty (which shouldn't happen due to disabled button).
           allRawTransactions = MOCK_RAW_TRANSACTIONS;
         }
       }
@@ -307,7 +300,6 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
       let mappedPreview: PreviewTransaction[] = [];
 
       if (allRawTransactions.length > 0) {
-        // AI Categorization for ALL users during testing/validation
         console.log("Chamando categorização IA...", allRawTransactions.length);
         const result = await categorizeTransactions(allRawTransactions);
         console.log("Resultado IA:", result);
@@ -315,8 +307,9 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
         mappedPreview = result.transacoes_categorizadas.map(t => {
           let finalCategory = t.categoria_principal;
 
-          // Safety check: if AI returns "A CLASSIFICAR" (hallucination) or null, fix it
-          if (!finalCategory || finalCategory === 'A CLASSIFICAR' || finalCategory === 'OUTROS - Erro') {
+          // Safety check: if AI returns error strings (hallucination or catch block), normalize them
+          const errorPattern = /err|fail|classificar|undefined|null/i;
+          if (!finalCategory || errorPattern.test(finalCategory) || finalCategory === 'OUTROS - Erro') {
             finalCategory = 'OUTROS';
           }
 
