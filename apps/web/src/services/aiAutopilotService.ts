@@ -73,10 +73,10 @@ Antes de processar qualquer solicitação:
 | ALERT_ANOMALY | (proativo) | - | - |
 
 **Regra de Desambiguação (CRÍTICA):**
-1. **Contas de Consumo (Energia, Água, Internet)** são SEMPRE `CREATE_BUDGET`, pois são gastos mensais a controlar. NUNCA classifique "conta de energia" como Meta.
-2. **Aquisições Futuras (Viagem, PS5, Carro)** são SEMPRE `CREATE_GOAL`.
-3. Se o usuário disser "Orçamento de [Nome]", é `CREATE_BUDGET`.
-4. Se o usuário disser "Meta de [Nome]", é `CREATE_GOAL`.
+1. **Contas de Consumo (Energia, Água, Internet)** são SEMPRE 'CREATE_BUDGET', pois são gastos mensais a controlar. NUNCA classifique "conta de energia" como Meta.
+2. **Aquisições Futuras (Viagem, PS5, Carro)** são SEMPRE 'CREATE_GOAL'.
+3. Se o usuário disser "Orçamento de [Nome]", é 'CREATE_BUDGET'.
+4. Se o usuário disser "Meta de [Nome]", é 'CREATE_GOAL'.
 
 ---
 
@@ -340,10 +340,10 @@ export const processUserCommand = async (
 
     // Build budget status
     const budgetStatus = context.budgets.map(b => ({
-      category: b.category,
-      limit: b.amount,
-      spent: spendingByCategory[b.category]?.total || 0,
-      percentage: ((spendingByCategory[b.category]?.total || 0) / b.amount) * 100
+      category: categoryNames.find((_, i) => context.categories[i].id === b.categoryId) || 'Desconhecido',
+      limit: b.planned,
+      spent: spendingByCategory[categoryNames.find((_, i) => context.categories[i].id === b.categoryId) || '']?.total || 0,
+      percentage: ((spendingByCategory[categoryNames.find((_, i) => context.categories[i].id === b.categoryId) || '']?.total || 0) / b.planned) * 100
     }));
 
     // Data object purely for context, NOT including the user input yet
@@ -353,10 +353,10 @@ export const processUserCommand = async (
       spending_last_30_days: spendingByCategory,
       active_goals: context.goals.map(g => ({
         name: g.name,
-        target: g.targetAmount,
-        current: g.currentAmount,
+        target: g.target,
+        current: g.current,
         deadline: g.deadline,
-        progress: (g.currentAmount / g.targetAmount) * 100
+        progress: (g.current / g.target) * 100
       })),
       total_transactions: context.transactions.length,
       current_date: new Date().toISOString().split('T')[0]
