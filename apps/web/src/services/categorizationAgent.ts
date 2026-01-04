@@ -1622,98 +1622,104 @@ export const categorizeTransactions = async (
 ): Promise<CategorizationResult> => {
   const startTime = Date.now();
 
-  try {
-    // Adicionar contexto de processamento
-    const processingContext = {
-      transacoes: transactions,
-      total_transacoes: transactions.length,
-      data_processamento: new Date().toISOString()
-    };
+  // Retry logic with exponential backoff
+  const maxRetries = 3;
+  let attempt = 0;
 
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: JSON.stringify(processingContext),
-      config: {
-        systemInstruction: SYSTEM_PROMPT,
-        temperature: 0.1, // Baixa temperatura para máximo determinismo
-        responseMimeType: "application/json"
-      },
-    });
+  while (attempt < maxRetries) {
+    try {
+      // Adicionar contexto de processamento
+      const processingContext = {
+        transacoes: transactions,
+        total_transacoes: transactions.length,
+        data_processamento: new Date().toISOString()
+      };
 
-    const resultText = response.text || "{}";
+      const response = await openai.chat.completions.create({
+        model: MODEL_NAME,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: JSON.stringify(processingContext) }
+        ],
+        temperature: 0.1,
+        response_format: { type: "json_object" }
+      });
 
-    // Remover possíveis markdown (segurança extra)
-    const cleanedText = resultText
-      .replace(/```json\n?/g, '')
-      .replace(/```\n?/g, '')
-      .trim();
+      const resultText = response.choices[0].message.content || "{}";
+      const parsedResult = JSON.parse(resultText) as CategorizationResult;
 
-    const parsedResult = JSON.parse(cleanedText) as CategorizationResult;
+      // Calcular tempo de processamento
+      const processingTime = Date.now() - startTime;
 
-    // Calcular tempo de processamento
-    const processingTime = Date.now() - startTime;
+      // Validar e enriquecer metadata
+      const enrichedResult: CategorizationResult = {
+        ...parsedResult,
+        estatisticas: {
+          ...parsedResult.estatisticas,
+          taxa_sucesso: parsedResult.estatisticas.total_processadas > 0
+            ? ((parsedResult.estatisticas.alta_confianca + parsedResult.estatisticas.media_confianca) /
+              parsedResult.estatisticas.total_processadas) * 100
+            : 0
+        },
+        metadata: {
+          versao_sistema: "2.0-OpenAI-GPT4o",
+          data_processamento: new Date().toISOString(),
+          tempo_processamento_ms: processingTime
+        }
+      };
 
-    // Validar e enriquecer metadata
-    const enrichedResult: CategorizationResult = {
-      ...parsedResult,
-      estatisticas: {
-        ...parsedResult.estatisticas,
-        taxa_sucesso: parsedResult.estatisticas.total_processadas > 0
-          ? ((parsedResult.estatisticas.alta_confianca + parsedResult.estatisticas.media_confianca) /
-            parsedResult.estatisticas.total_processadas) * 100
-          : 0
-      },
-      metadata: {
-        versao_sistema: "2.0-Gemini",
-        data_processamento: new Date().toISOString(),
-        tempo_processamento_ms: processingTime
+      return enrichedResult;
+
+    } catch (error: any) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      // Se for erro de rate limit (429) e ainda tiver tentativas
+      if ((errorMessage.includes("429") || errorMessage.includes("Quota")) && attempt < maxRetries - 1) {
+        const waitTime = Math.pow(2, attempt) * 2000;
+        console.warn(`⏳ Rate limit OpenAI. Tentativa ${attempt + 1}/${maxRetries}. Aguardando ${waitTime}ms...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        attempt++;
+        continue;
       }
-    };
 
-    // Validação de integridade
-    if (enrichedResult.transacoes_categorizadas.length !== transactions.length) {
-      console.warn('⚠️ Número de transações processadas diferente do esperado!');
-    }
+      console.error("❌ Erro ao categorizar transações com OpenAI:", error);
+      const processingTime = Date.now() - startTime;
 
-    return enrichedResult;
-
-  } catch (error: any) {
-    console.error("❌ Erro ao categorizar transações com IA:", error);
-
-    const processingTime = Date.now() - startTime;
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorType = error?.constructor?.name || "Error";
-
-    // Detectar erro de API Key
-    let friendlyError = errorMessage;
-    if (errorMessage.includes("API key not valid") || errorMessage.includes("403") || !import.meta.env.VITE_GEMINI_API_KEY) {
-      friendlyError = "Erro: Chave API Inválida ou Ausente";
-    } else if (errorMessage.includes("429") || errorMessage.includes("Quota")) {
-      friendlyError = "Erro: Cota da API Excedida";
-    }
-
-    // Retorno de fallback em caso de erro
-    return {
-      transacoes_categorizadas: transactions.map(t => ({
-        ...t,
-        classificacao: friendlyError.substring(0, 30), // Short for subcategory column
-        categoria_principal: "OUTROS - Erro",
-        confianca: "baixa",
-        justificativa: `Detalhes: ${errorMessage}` // Full details
-      })),
-      estatisticas: {
-        total_processadas: transactions.length,
-        alta_confianca: 0,
-        media_confianca: 0,
-        baixa_confianca: transactions.length,
-        nao_categorizadas: transactions.length,
-        taxa_sucesso: 0
-      },
-      metadata: {
-        versao_sistema: "Error-Gemini-Fallback",
-        data_processamento: new Date().toISOString(),
-        tempo_processamento_ms: processingTime
+      let friendlyError = errorMessage;
+      if (errorMessage.includes("401") || errorMessage.includes("API key")) {
+        friendlyError = "Erro: API Key OpenAI Inválida";
+      } else if (errorMessage.includes("429") || errorMessage.includes("quota")) {
+        friendlyError = "Erro: Cota/Rate Limit Excedido";
       }
-    };
+
+      return {
+        transacoes_categorizadas: transactions.map(t => ({
+          ...t,
+          classificacao: friendlyError.substring(0, 30),
+          categoria_principal: "OUTROS - Erro",
+          confianca: "baixa",
+          justificativa: `Detalhes: ${errorMessage}`
+        })),
+        estatisticas: {
+          total_processadas: transactions.length,
+          alta_confianca: 0,
+          media_confianca: 0,
+          baixa_confianca: transactions.length,
+          nao_categorizadas: transactions.length,
+          taxa_sucesso: 0
+        },
+        metadata: {
+          versao_sistema: "Error-OpenAI-Fallback",
+          data_processamento: new Date().toISOString(),
+          tempo_processamento_ms: processingTime
+        }
+      };
+    }
   }
+
+  return {
+    transacoes_categorizadas: [],
+    estatisticas: { total_processadas: 0, alta_confianca: 0, media_confianca: 0, baixa_confianca: 0, nao_categorizadas: 0, taxa_sucesso: 0 },
+    metadata: { versao_sistema: "Error", data_processamento: "", tempo_processamento_ms: 0 }
+  };
 };
