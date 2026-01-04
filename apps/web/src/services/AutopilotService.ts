@@ -254,16 +254,18 @@ export const autopilotService = {
 
         // Simple Rule: Check Overspending
         budgets.forEach(b => {
-            if (b.spent > b.amount) {
+            const categoryName = categories.find(c => c.id === b.categoryId)?.name || 'Desconhecida';
+
+            if (b.actual > b.planned) {
                 insights.push({
                     type: 'BUDGET_WARNING',
-                    message: `Você estourou o orçamento de ${b.category} em R$ ${(b.spent - b.amount).toFixed(2)}.`,
+                    message: `Você estourou o orçamento de ${categoryName} em R$ ${(b.actual - b.planned).toFixed(2)}.`,
                     severity: 'HIGH'
                 });
-            } else if (b.spent > b.amount * 0.9) {
+            } else if (b.actual > b.planned * 0.9) {
                 insights.push({
                     type: 'BUDGET_WARNING',
-                    message: `Atenção: ${b.category} já atingiu 90% do limite.`,
+                    message: `Atenção: ${categoryName} já atingiu 90% do limite.`,
                     severity: 'MEDIUM'
                 });
             }
