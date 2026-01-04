@@ -297,6 +297,8 @@ O contexto será fornecido com:
 }
 `;
 
+import { ChatMessage } from "../types";
+
 export const processUserCommand = async (
   userInput: string,
   context: {
@@ -304,7 +306,8 @@ export const processUserCommand = async (
     budgets: Budget[],
     categories: Category[],
     goals: Goal[]
-  }
+  },
+  history: ChatMessage[] = []
 ): Promise<AutopilotResponse> => {
   try {
     // Build rich context with statistics
@@ -320,7 +323,7 @@ export const processUserCommand = async (
 
     const spendingByCategory = categoryNames.reduce((acc, cat) => {
       const categoryTransactions = recentTransactions.filter(t =>
-        t.category === cat && t.type === 'expense'
+        t.category === cat && t.type === 'EXPENSE'
       );
       const total = categoryTransactions.reduce((sum, t) => sum + t.amount, 0);
       const average = categoryTransactions.length > 0 ? total / categoryTransactions.length : 0;
@@ -341,30 +344,43 @@ export const processUserCommand = async (
       percentage: ((spendingByCategory[b.category]?.total || 0) / b.amount) * 100
     }));
 
-    const contextData = {
-      user_input: userInput,
-      context: {
-        categories: categoryNames,
-        budgets: budgetStatus,
-        spending_last_30_days: spendingByCategory,
-        active_goals: context.goals.map(g => ({
-          name: g.name,
-          target: g.targetAmount,
-          current: g.currentAmount,
-          deadline: g.deadline,
-          progress: (g.currentAmount / g.targetAmount) * 100
-        })),
-        total_transactions: context.transactions.length,
-        current_date: new Date().toISOString().split('T')[0]
-      }
+    // Data object purely for context, NOT including the user input yet
+    const financialContext = {
+      categories: categoryNames,
+      budgets: budgetStatus,
+      spending_last_30_days: spendingByCategory,
+      active_goals: context.goals.map(g => ({
+        name: g.name,
+        target: g.targetAmount,
+        current: g.currentAmount,
+        deadline: g.deadline,
+        progress: (g.currentAmount / g.targetAmount) * 100
+      })),
+      total_transactions: context.transactions.length,
+      current_date: new Date().toISOString().split('T')[0]
     };
+
+    // Prepare history messages
+    // We filter out the very first "welcome" message if it's from the model and generic, or keep it.
+    // We map 'model' -> 'assistant'
+    const conversationHistory = history.slice(-10).map(msg => ({
+      role: msg.role === 'model' ? 'assistant' : 'user',
+      content: msg.text
+    }));
+
+    const messages: any[] = [
+      { role: "system", content: SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: `CONTEXTO FINANCEIRO ATUAL (Use estes dados para validar solicitações):\n${JSON.stringify(financialContext, null, 2)}`
+      },
+      ...conversationHistory,
+      { role: "user", content: userInput }
+    ];
 
     const completion = await openai.chat.completions.create({
       model: MODEL_NAME,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: JSON.stringify(contextData) }
-      ],
+      messages: messages, // Now passing the full chain
       temperature: 0.3,
       response_format: { type: "json_object" }
     });

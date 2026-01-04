@@ -83,7 +83,7 @@ const AIAssistant: React.FC = () => {
         budgets,
         categories,
         goals
-      });
+      }, messages);
 
       const aiMsg: ChatMessage = { role: 'model', text: response.message, timestamp: new Date() };
       setMessages(prev => [...prev, aiMsg]);
