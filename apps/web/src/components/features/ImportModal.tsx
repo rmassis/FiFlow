@@ -36,6 +36,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
   const [files, setFiles] = useState<File[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [previewData, setPreviewData] = useState<PreviewTransaction[]>([]);
   const [isBelvoLoading, setIsBelvoLoading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -514,19 +515,27 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
           await addTransactions(toImport);
         };
         const runProcess = async () => {
-          await processImport();
+          setIsImporting(true);
+          try {
+            await processImport();
 
-          if (duplicateCount > 0) {
-            alert(`✅ Importação concluída com sucesso!\n\n📥 Importados: ${newTransactions.length}\n🚫 Duplicados ignorados: ${duplicateCount}`);
-          } else {
-            alert(`✅ ${newTransactions.length} transações importadas com sucesso!`);
+            if (duplicateCount > 0) {
+              alert(`✅ Importação concluída com sucesso!\n\n📥 Importados: ${newTransactions.length}\n🚫 Duplicados ignorados: ${duplicateCount}`);
+            } else {
+              alert(`✅ ${newTransactions.length} transações importadas com sucesso!`);
+            }
+
+            setFiles([]);
+            setSelectedAccountId('');
+            setStep('upload');
+            setPreviewData([]);
+            onClose();
+          } catch (e) {
+            console.error("Erro ao importar:", e);
+            alert("Erro ao salvar as transações.");
+          } finally {
+            setIsImporting(false);
           }
-
-          setFiles([]);
-          setSelectedAccountId('');
-          setStep('upload');
-          setPreviewData([]);
-          onClose();
         };
         runProcess();
       } else if (duplicateCount > 0) { // Keep else if logic for pure duplicates
@@ -805,7 +814,20 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
           {step === 'preview' && (
             <div className="flex gap-3">
               <button onClick={() => setStep('upload')} className="px-6 py-3 text-slate-500 font-bold hover:bg-white rounded-xl transition-all">Cancelar</button>
-              <button onClick={handleConfirm} className="px-8 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all shadow-lg active:scale-95">Confirmar Importação</button>
+              <button
+                onClick={handleConfirm}
+                disabled={isImporting}
+                className={`px-8 py-3 ${isImporting ? 'bg-slate-300' : 'bg-emerald-600 hover:bg-emerald-700 shadow-lg active:scale-95'} text-white font-bold rounded-xl transition-all flex items-center gap-2`}
+              >
+                {isImporting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Processando...
+                  </>
+                ) : (
+                  'Confirmar Importação'
+                )}
+              </button>
             </div>
           )}
         </div>
