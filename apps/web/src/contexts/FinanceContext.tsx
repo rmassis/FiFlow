@@ -19,6 +19,8 @@ interface FinanceContextData {
 
     // Categories & Budgets
     addCategory: (category: Omit<Category, 'id'>) => Promise<Category | null>;
+    updateCategory: (id: string, updated: Partial<Category>) => Promise<void>;
+    deleteCategory: (id: string) => Promise<void>;
     updateBudget: (categoryId: string, planned: number) => Promise<void>;
     deleteBudget: (categoryId: string) => Promise<void>;
 
