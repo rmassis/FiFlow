@@ -28,7 +28,7 @@ interface PreviewTransaction {
 }
 
 const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) => {
-  const { accounts, cards, addAccount, transactions, addTransaction, addTransactions, categories } = useFinance();
+  const { accounts, cards, addAccount, transactions, addTransaction, addTransactions, deduplicateTransactions, categories } = useFinance();
   const { isPro, isFree } = useSubscription();
   const [tab, setTab] = useState<'files' | 'belvo'>('files');
   const [step, setStep] = useState<'upload' | 'preview'>('upload');
@@ -484,9 +484,10 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
         // Unique key: Date + Amount + Description (normalized)
         const isDuplicate = existingTransactions.some(existing => {
           const sameDate = existing.date === item.date;
-          // Use small epsilon for float comparison just in case, though usually exact for currency
           const sameAmount = Math.abs(existing.amount - item.amount) < 0.01;
-          const sameDescription = existing.description.toLowerCase().trim() === item.description.toLowerCase().trim();
+          const normExistingDesc = existing.description.toLowerCase().trim().replace(/\s+/g, ' ');
+          const normItemDesc = item.description.toLowerCase().trim().replace(/\s+/g, ' ');
+          const sameDescription = normExistingDesc === normItemDesc;
 
           return sameDate && sameAmount && sameDescription;
         });
@@ -519,8 +520,12 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
           try {
             await processImport();
 
-            if (duplicateCount > 0) {
-              alert(`✅ Importação concluída com sucesso!\n\n📥 Importados: ${newTransactions.length}\n🚫 Duplicados ignorados: ${duplicateCount}`);
+            // Regra de Pós-Importação: Limpar qualquer duplicata residual no banco
+            const cleanCount = await deduplicateTransactions();
+
+            if (duplicateCount > 0 || cleanCount > 0) {
+              const totalIgnored = duplicateCount + cleanCount;
+              alert(`✅ Importação concluída!\n\n📥 Novos lançamentos: ${newTransactions.length}\n🚫 Duplicados removidos/ignorados: ${totalIgnored}`);
             } else {
               alert(`✅ ${newTransactions.length} transações importadas com sucesso!`);
             }

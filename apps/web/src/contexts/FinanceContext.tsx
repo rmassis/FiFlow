@@ -17,6 +17,7 @@ interface FinanceContextData {
     updateTransaction: (id: string, updated: Partial<Transaction>) => Promise<void>;
     deleteTransaction: (id: string) => Promise<void>;
     deleteTransactions: (ids: string[]) => Promise<void>;
+    deduplicateTransactions: () => Promise<number>;
 
     // Categories & Budgets
     addCategory: (category: Omit<Category, 'id'>) => Promise<Category | null>;
@@ -393,6 +394,40 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
     };
 
+    const deduplicateTransactions = async (): Promise<number> => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return 0;
+
+        const seen = new Set<string>();
+        const toDeleteIds: string[] = [];
+
+        const sorted = [...transactions].sort((a, b) => a.id.localeCompare(b.id));
+
+        for (const t of sorted) {
+            const normDesc = t.description.toLowerCase().trim().replace(/\s+/g, ' ');
+            const key = `${t.date}-${Math.abs(t.amount).toFixed(2)}-${normDesc}-${t.type}`;
+
+            if (seen.has(key)) {
+                toDeleteIds.push(t.id);
+            } else {
+                seen.add(key);
+            }
+        }
+
+        if (toDeleteIds.length > 0) {
+            const { error } = await supabase.from('transactions').delete().in('id', toDeleteIds);
+            if (error) {
+                console.error('Deduplicate error:', error);
+                return 0;
+            } else {
+                await refreshData();
+                return toDeleteIds.length;
+            }
+        }
+
+        return 0;
+    };
+
     // Categories
     const addCategory = async (item: Omit<Category, 'id'>): Promise<Category | null> => {
         const { data: { user } } = await supabase.auth.getUser();
@@ -644,7 +679,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         <FinanceContext.Provider value={{
             transactions, categories, budgets, goals, accounts, cards, investments,
             loading, refreshData,
-            addTransaction, addTransactions, updateTransaction, deleteTransaction, deleteTransactions,
+            addTransaction, addTransactions, updateTransaction, deleteTransaction, deleteTransactions, deduplicateTransactions,
             addCategory, updateCategory, deleteCategory, updateBudget, deleteBudget,
             addGoal, updateGoal, deleteGoal,
             addAccount, updateAccount, deleteAccount,
