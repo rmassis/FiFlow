@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useFinance } from '../../contexts/FinanceContext';
 import { useSubscription } from '../../contexts/SubscriptionContext';
-import { unifiedAIService, TransactionInput } from '../../services/unifiedAIService';
+import { autopilotService, TransactionInput } from '../../services/AutopilotService';
 import { belvoService } from '../../services/belvoService';
 
 interface ImportModalProps {
@@ -408,7 +408,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
           setProgress(currentProgress);
 
           // Process chunk
-          const result = await unifiedAIService.categorizeBatch(chunk, categories);
+          const result = await autopilotService.categorizeBatch(chunk, categories);
           allCategorized = [...allCategorized, ...result.transacoes_categorizadas];
 
           processedCount += chunk.length;

@@ -7,7 +7,7 @@ import {
 import { TrendingUp, TrendingDown, DollarSign, Wallet, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
 import { useFinance } from '../../contexts/FinanceContext';
 import AiInsightsWidget from '../features/AiInsightsWidget';
-import { generateDashboardInsights } from '../../services/aiAutopilotService';
+import { autopilotService } from '../../services/AutopilotService';
 
 const Dashboard: React.FC = () => {
   const {
@@ -79,8 +79,14 @@ const Dashboard: React.FC = () => {
   }, [transactions, period]);
 
   // Generate Insights
-  const insights = React.useMemo(() => {
-    return generateDashboardInsights(transactions, budgets, categories);
+  const [insights, setInsights] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    const fetchInsights = async () => {
+      const result = await autopilotService.generateDashboardInsights(transactions, budgets, categories);
+      setInsights(result);
+    };
+    fetchInsights();
   }, [transactions, budgets, categories]);
 
   const pieData = budgets.map(b => {

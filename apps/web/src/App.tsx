@@ -15,7 +15,7 @@ import LoginPage from './components/pages/LoginPage';
 import SignUpPage from './components/pages/SignUpPage';
 import ImportModal from './components/features/ImportModal';
 import UpdatePasswordModal from './components/features/UpdatePasswordModal';
-import AIAssistant from './components/features/AIAssistant';
+import AutopilotChat from './components/features/AutopilotChat';
 import OnboardingWizard from './components/features/OnboardingWizard';
 import {
   Plus,
@@ -228,7 +228,7 @@ const AppContent: React.FC<{ session: Session }> = ({ session }) => {
         }}
       />
 
-      <AIAssistant />
+      <AutopilotChat />
 
       <OnboardingWizard
         isOpen={!loading && accounts.length === 0 && !subLoading && !isUpdatePasswordOpen}

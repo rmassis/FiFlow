@@ -1,12 +1,12 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, X, Sparkles, MessageCircle, Play, CheckCircle2 } from 'lucide-react';
-import { unifiedAIService, UnifiedResponse } from '../../services/unifiedAIService';
+import { autopilotService, UnifiedResponse } from '../../services/AutopilotService';
 import { useFinance } from '../../contexts/FinanceContext';
 import { useSubscription } from '../../contexts/SubscriptionContext';
 import { ChatMessage } from '../../types';
 
-const AIAssistant: React.FC = () => {
+const AutopilotChat: React.FC = () => {
   const { transactions = [], budgets = [], goals = [], categories = [], updateBudget, addGoal, addTransaction, addCategory } = useFinance();
   const { isFree } = useSubscription();
   const [isOpen, setIsOpen] = useState(false);
@@ -262,5 +262,5 @@ const AIAssistant: React.FC = () => {
   );
 };
 
-export default AIAssistant;
+export default AutopilotChat;
 

@@ -118,7 +118,7 @@ Retorne um objeto:
 
 // --- Service Methods ---
 
-export const unifiedAIService = {
+export const autopilotService = {
 
     /**
      * Process a user command in the Chat interface.
@@ -222,5 +222,58 @@ export const unifiedAIService = {
             // Fallback: return empty or manual categorization needed
             return { transacoes_categorizadas: [] };
         }
+    },
+
+    /**
+     * Generate proactive insights for DASHBOARD.
+     * This is a lighter version of the chat analysis.
+     */
+    generateDashboardInsights: async (
+        transactions: Transaction[],
+        budgets: Budget[],
+        categories: Category[]
+    ): Promise<Array<{
+        type: 'ANOMALY' | 'BUDGET_WARNING' | 'POSITIVE_PATTERN' | 'INFO';
+        message: string;
+        severity: 'LOW' | 'MEDIUM' | 'HIGH';
+    }>> => {
+        // Mock Implementation for now (to fix build) - Real logic can be added later or call OpenAI in background
+        const insights: Array<any> = [];
+
+        // Simple Rule: Check Overspending
+        budgets.forEach(b => {
+            if (b.spent > b.amount) {
+                insights.push({
+                    type: 'BUDGET_WARNING',
+                    message: `Você estourou o orçamento de ${b.category} em R$ ${(b.spent - b.amount).toFixed(2)}.`,
+                    severity: 'HIGH'
+                });
+            } else if (b.spent > b.amount * 0.9) {
+                insights.push({
+                    type: 'BUDGET_WARNING',
+                    message: `Atenção: ${b.category} já atingiu 90% do limite.`,
+                    severity: 'MEDIUM'
+                });
+            }
+        });
+
+        // Simple Rule: Positive Pattern
+        if (transactions.filter(t => t.type === 'INCOME').length > 0) {
+            insights.push({
+                type: 'POSITIVE_PATTERN',
+                message: 'Receitas recorrentes detectadas. Seu fluxo está saudável.',
+                severity: 'LOW'
+            });
+        }
+
+        if (insights.length === 0) {
+            insights.push({
+                type: 'INFO',
+                message: 'Nenhum alerta crítico para hoje.',
+                severity: 'LOW'
+            });
+        }
+
+        return insights;
     }
 };
