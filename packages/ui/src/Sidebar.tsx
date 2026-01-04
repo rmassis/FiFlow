@@ -89,11 +89,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, menuI
                 </nav>
 
                 <div className="px-6 pt-6 border-t border-slate-100 dark:border-slate-800">
-                    <button className="w-full flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow group">
-                        <img src={user.avatarUrl} className="w-10 h-10 rounded-full border-2 border-white dark:border-slate-700 shadow-sm group-hover:border-indigo-500 transition-colors" alt="User" />
-                        <div className="flex flex-col items-start">
-                            <span className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate max-w-[120px]">{user.name}</span>
-                            <span className="text-xs text-indigo-500 font-medium">{user.plan}</span>
+                    <button className="w-full flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow group text-left">
+                        <img src={user.avatarUrl} className="w-10 h-10 rounded-full border-2 border-white dark:border-slate-700 shadow-sm group-hover:border-indigo-500 transition-colors object-cover flex-shrink-0" alt="User" />
+                        <div className="flex flex-col items-start min-w-0 flex-1">
+                            <span className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate w-full" title={user.name}>{user.name}</span>
+                            <span className="text-xs text-indigo-500 font-bold">{user.plan}</span>
                         </div>
                     </button>
                 </div>
