@@ -18,6 +18,8 @@ export interface Transaction {
   status: 'PAID' | 'PENDING';
   account: string;
   subcategory?: string;
+  accountId?: string;
+  categoryId?: string;
 }
 
 export interface Goal {

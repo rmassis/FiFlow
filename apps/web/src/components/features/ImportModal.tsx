@@ -496,14 +496,30 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
       }
 
       if (newTransactions.length > 0) {
-        onImport(newTransactions, selectedAccountId);
-
-        if (duplicateCount > 0) {
-          alert(`✅ Importação concluída com sucesso!\n\n📥 Importados: ${newTransactions.length}\n🚫 Duplicados ignorados: ${duplicateCount}`);
-        } else {
-          // Default success message handled by parent or omitted
-        }
-      } else if (duplicateCount > 0) {
+        const processImport = async () => {
+          let importedCount = 0;
+          for (const item of newTransactions) {
+            await addTransaction({
+              date: item.date,
+              description: item.description,
+              amount: item.amount,
+              type: item.type as 'INCOME' | 'EXPENSE',
+              category: item.category,
+              subcategory: item.subcategory,
+              status: 'PAID',
+              accountId: selectedAccountId === 'AUTO_CREATE' ? undefined : selectedAccountId,
+              account: accounts.find(a => a.id === selectedAccountId)?.name || ''
+            });
+            importedCount++;
+          }
+          if (duplicateCount > 0) {
+            alert(`✅ Importação concluída com sucesso!\n\n📥 Importados: ${importedCount}\n🚫 Duplicados ignorados: ${duplicateCount}`);
+          } else {
+            alert(`✅ ${importedCount} transações importadas com sucesso!`);
+          }
+        };
+        processImport();
+      } else if (duplicateCount > 0) { // Keep else if logic for pure duplicates
         alert(`⚠️ Todas as ${duplicateCount} transações já foram importadas anteriormente.`);
       }
 

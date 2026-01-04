@@ -182,8 +182,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (!user) return null;
 
         // 1. Resolve Category ID
-        let categoryId: string | null = null;
-        if (item.category) {
+        // 1. Resolve Category ID
+        let categoryId: string | null = item.categoryId || null; // Use provided ID first
+
+        if (!categoryId && item.category) {
             const normalizedCat = item.category.trim();
             const existingCat = categories.find(c => c.name.toLowerCase() === normalizedCat.toLowerCase());
 
@@ -204,8 +206,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         // 2. Resolve Account ID (optional but recommended if linked)
         // item.account is string (name) based on types.ts
-        let accountId: string | null = null;
-        if (item.account) {
+        let accountId: string | null = item.accountId || null; // Use provided ID first
+
+        if (!accountId && item.account) {
             const normalizedAcc = item.account.trim();
             const existingAcc = accounts.find(a => a.name.toLowerCase() === normalizedAcc.toLowerCase());
             if (existingAcc) {
