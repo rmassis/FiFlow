@@ -310,6 +310,18 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
     };
 
+    const updateCategory = async (id: string, updated: Partial<Category>) => {
+        const { error } = await supabase.from('categories').update(updated).eq('id', id);
+        if (error) console.error('Update Category error:', error);
+        else refreshData();
+    };
+
+    const deleteCategory = async (id: string) => {
+        const { error } = await supabase.from('categories').delete().eq('id', id);
+        if (error) console.error('Delete Category error:', error);
+        else refreshData();
+    };
+
     // Budgets
     const updateBudget = async (categoryId: string, planned: number) => {
         const { data: { user } } = await supabase.auth.getUser();
@@ -531,7 +543,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             transactions, categories, budgets, goals, accounts, cards, investments,
             loading, refreshData,
             addTransaction, updateTransaction, deleteTransaction, deleteTransactions,
-            addCategory, updateBudget, deleteBudget,
+            addCategory, updateCategory, deleteCategory, updateBudget, deleteBudget,
             addGoal, updateGoal, deleteGoal,
             addAccount, updateAccount, deleteAccount,
             addCard, updateCard, deleteCard,
