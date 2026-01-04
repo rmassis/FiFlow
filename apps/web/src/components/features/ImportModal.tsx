@@ -231,10 +231,11 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
     // Parse header using robust parser
     const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase());
 
-    // Enhanced heuristic: look for date, amount, description columns
+    // Enhanced heuristic: look for date, amount, description, type columns
     const dateIdx = headers.findIndex(h => h.includes('data') || h.includes('date') || h.includes('dt'));
     const descIdx = headers.findIndex(h => h.includes('desc') || h.includes('historico') || h.includes('memo') || h.includes('lançamento') || h.includes('lancamento') || h.includes('estabelecimento'));
     const amountIdx = headers.findIndex(h => h.includes('valor') || h.includes('amount') || h.includes('rs') || h.includes('r$'));
+    const typeIdx = headers.findIndex(h => h.includes('tipo') || h.includes('type') || h.includes('d/c') || h.includes('operacao'));
 
     const parsedData: TransactionInput[] = [];
 
@@ -249,6 +250,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
     const effDescIdx = descIdx !== -1 ? descIdx : 1;
     // Default amount to last column if simple layout, otherwise 2
     const effAmountIdx = amountIdx !== -1 ? amountIdx : (headers.length > 2 ? headers.length - 1 : 2);
+    // Explicit type column if found
+    const effTypeIdx = typeIdx;
 
     for (let i = startIdx; i < lines.length; i++) {
       // Use robust parser
@@ -259,6 +262,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
       let rawDate = cols[effDateIdx]?.trim();
       let rawDesc = cols[effDescIdx]?.trim();
       let rawAmount = cols[effAmountIdx]?.trim();
+      let rawType = effTypeIdx !== -1 ? cols[effTypeIdx]?.trim() : '';
 
       // Skip empty rows
       if (!rawDate && !rawDesc && !rawAmount) continue;
@@ -287,6 +291,30 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
       // Final check: if still NaN, skip this row
       if (isNaN(amountVal)) continue;
 
+      // Determine type based on rawType column OR amount sign
+      // If explicit type column exists:
+      let isIncome = false;
+      if (rawType) {
+        const lowerType = rawType.toLowerCase();
+        if (lowerType.includes('crédito') || lowerType.includes('receita') || lowerType.includes('entrada') || lowerType.includes('deposit')) {
+          isIncome = true;
+        }
+      } else {
+        // Heuristic: if amount string had no minus sign, maybe it is income? 
+        // But in credit card statements, expenses are often positive numbers.
+        // We rely on AI for default, but if rawAmount has "-", it is definitely negative (which means expense usually, 
+        // BUT in bank statement logic: -100 = money out = expense. +100 = money in = income).
+        // So if we parsed a negative number, let's trust that sign logic for Bank Statements (Checking).
+        // For Credit Card details, usually positive = expense.
+        // Let's stick to: if we parsed a negative number, it's an EXPENSE (money leaving).
+        // If positive, it MIGHT be income, or just how csv lists it.
+        // Let's assume Checking Account Logic: - = Expense, + = Income.
+        if (amountVal > 0 && !rawType) {
+          // Check if user selected "Credit Card" account? We don't know yet.
+          // Let's leave false and let AI decide, UNLESS we detected a "Type" column.
+        }
+      }
+
       // STRICT HEADER CHECK: match against the CLEANED value
       if (rawDate && /^(data|date|dt|dia)$/i.test(rawDate)) continue;
       if (rawDesc && /^(descrição|desc|historico|lançamento|lancamento)$/i.test(rawDesc)) continue;
@@ -296,7 +324,10 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
         data: rawDate || new Date().toLocaleDateString('pt-BR'),
         descricao: rawDesc || 'Sem descrição',
         valor: Math.abs(amountVal),
-        banco: 'Importado'
+        banco: 'Importado',
+        // Pass hints to AI or UI
+        // @ts-ignore - extending the input type temporarily or just handling in map
+        tipo_sugerido: isIncome ? 'INCOME' : 'EXPENSE'
       });
     }
 
@@ -393,6 +424,22 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
             finalCategory = 'OUTROS';
           }
 
+          // Determine High Level Type (Income/Expense)
+          // Priority: AI Decision > CSV Hint > Heuristic
+          // Actually, if CSV has explicit "Crédito", we should trust it over AI potentially?
+          // But let's let AI override if it detects "Salário" category.
+
+          let finalType: 'INCOME' | 'EXPENSE' = 'EXPENSE';
+
+          if (finalCategory.includes('RECEITAS') || finalCategory.includes('Salário') || finalCategory.includes('Investimento')) {
+            finalType = 'INCOME';
+          } else {
+            // Fallback to CSV hint if AI didn't categorize as Income explicitly
+            // @ts-ignore
+            const csvHint = allRawTransactions.find(r => r.id === t.id)?.tipo_sugerido;
+            if (csvHint === 'INCOME') finalType = 'INCOME';
+          }
+
           return {
             id: t.id,
             date: t.data,
@@ -400,7 +447,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
             amount: t.valor,
             category: finalCategory,
             subcategory: t.classificacao,
-            type: finalCategory.includes('RECEITAS') || finalCategory.includes('Salário') ? 'INCOME' : 'EXPENSE',
+            type: finalType,
             confidence: t.confianca
           };
         });
