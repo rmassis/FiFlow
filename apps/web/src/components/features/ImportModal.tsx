@@ -28,7 +28,7 @@ interface PreviewTransaction {
 }
 
 const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) => {
-  const { accounts, addAccount, transactions, addTransaction, categories } = useFinance();
+  const { accounts, cards, addAccount, transactions, addTransaction, categories } = useFinance();
   const { isPro, isFree } = useSubscription();
   const [tab, setTab] = useState<'files' | 'belvo'>('files');
   const [step, setStep] = useState<'upload' | 'preview'>('upload');
@@ -612,14 +612,27 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
                         className="w-full appearance-none bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium"
                       >
                         <option value="" disabled>Selecione uma conta...</option>
-                        {accounts.length === 0 && (
+                        {accounts.length === 0 && cards.length === 0 && (
                           <option value="AUTO_CREATE">✨ Criar conta automaticamente</option>
                         )}
-                        {accounts.map(account => (
-                          <option key={account.id} value={account.id}>
-                            {account.name} ({account.bankName})
-                          </option>
-                        ))}
+                        {accounts.length > 0 && (
+                          <optgroup label="Contas Bancárias">
+                            {accounts.map(account => (
+                              <option key={account.id} value={account.id}>
+                                {account.name} ({account.bankName})
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        {cards.length > 0 && (
+                          <optgroup label="Cartões de Crédito">
+                            {cards.map(card => (
+                              <option key={card.id} value={card.id}>
+                                {card.name} ({card.brand})
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
                       </select>
                       <Wallet className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
                     </div>
@@ -691,14 +704,27 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
                             className="w-full appearance-none bg-white border border-slate-200 text-slate-800 text-sm rounded-xl px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium"
                           >
                             <option value="" disabled>Selecione uma conta...</option>
-                            {accounts.length === 0 && (
+                            {accounts.length === 0 && cards.length === 0 && (
                               <option value="AUTO_CREATE">✨ Criar conta automaticamente</option>
                             )}
-                            {accounts.map(account => (
-                              <option key={account.id} value={account.id}>
-                                {account.name} ({account.bankName})
-                              </option>
-                            ))}
+                            {accounts.length > 0 && (
+                              <optgroup label="Contas Bancárias">
+                                {accounts.map(account => (
+                                  <option key={account.id} value={account.id}>
+                                    {account.name} ({account.bankName})
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            {cards.length > 0 && (
+                              <optgroup label="Cartões de Crédito">
+                                {cards.map(card => (
+                                  <option key={card.id} value={card.id}>
+                                    {card.name} ({card.brand})
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
                           </select>
                           <Wallet className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
                         </div>

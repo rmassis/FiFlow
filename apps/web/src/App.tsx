@@ -65,7 +65,7 @@ const AppContent: React.FC<{ session: Session }> = ({ session }) => {
   }, []);
 
   const { profile, loading: subLoading, plan } = useSubscription();
-  const { addTransaction, categories, transactions, accounts, loading } = useFinance();
+  const { addTransaction, categories, transactions, accounts, cards, loading } = useFinance();
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -203,7 +203,7 @@ const AppContent: React.FC<{ session: Session }> = ({ session }) => {
         isOpen={isImportOpen}
         onClose={() => setIsImportOpen(false)}
         onImport={(importedTransactions, accountId) => {
-          const targetAccount = accounts.find(a => a.id === accountId);
+          const targetAccount = accounts.find(a => a.id === accountId) || cards.find(c => c.id === accountId);
           importedTransactions.forEach(t => {
             addTransaction({
               date: t.date,
