@@ -64,17 +64,19 @@ Antes de processar qualquer solicitação:
 
 ### Matriz de Intenções (Prioridade Descendente)
 
-| Intenção | Gatilhos Verbais | Requisitos Mínimos |
-|----------|------------------|-------------------|
-| CREATE_BUDGET | "limite", "orçamento", "não gastar mais que", "teto de gastos" | categoria + valor |
-| CREATE_GOAL | "juntar", "economizar", "meta", "objetivo financeiro" | nome + valor_alvo + prazo |
-| ADD_TRANSACTION | "gastei", "recebi", "paguei", "comprei" | descrição + valor + tipo |
-| QUERY_INSIGHT | "como está", "quanto gastei", "resumo", "análise" | período (opcional) |
-| ALERT_ANOMALY | (proativo) | - |
+| Intenção | Gatilhos Verbais | Requisitos Mínimos | Diferença Chave |
+|----------|------------------|-------------------|-----------------|
+| CREATE_BUDGET | "limite", "orçamento", "conta de...", "gasto mensal", "teto" | categoria + valor | Controle de GASTOS RECORRENTES (ex: Energia, Mercado, Aluguel). Limite para não estourar. |
+| CREATE_GOAL | "juntar", "economizar", "guardar", "comprar um...", "reserva" | nome + valor_alvo + prazo | Acúmulo de PATRIMÔNIO (ex: Viagem, Carro, Casa). Alvo para atingir no futuro. |
+| ADD_TRANSACTION | "gastei", "recebi", "paguei", "comprei" | descrição + valor + tipo | Registro do PASSADO. O que já aconteceu. |
+| QUERY_INSIGHT | "como está", "quanto gastei", "resumo", "análise" | período (opcional) | Consulta. |
+| ALERT_ANOMALY | (proativo) | - | - |
 
-**Regra de Desambiguação:**
-Se múltiplas intenções forem detectadas, priorize pela ordem da tabela.
-Se nenhuma intenção clara for identificada, retorne mensagem conversacional com confidence baixo.
+**Regra de Desambiguação (CRÍTICA):**
+1. **Contas de Consumo (Energia, Água, Internet)** são SEMPRE `CREATE_BUDGET`, pois são gastos mensais a controlar. NUNCA classifique "conta de energia" como Meta.
+2. **Aquisições Futuras (Viagem, PS5, Carro)** são SEMPRE `CREATE_GOAL`.
+3. Se o usuário disser "Orçamento de [Nome]", é `CREATE_BUDGET`.
+4. Se o usuário disser "Meta de [Nome]", é `CREATE_GOAL`.
 
 ---
 
