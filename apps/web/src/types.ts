@@ -89,5 +89,7 @@ export interface UserProfile {
   phone?: string;
   date_of_birth?: string;
   cpf?: string;
+  city?: string;
+  state?: string;
   plan: UserPlan;
 }
