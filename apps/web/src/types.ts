@@ -20,6 +20,7 @@ export interface Transaction {
   subcategory?: string;
   accountId?: string;
   categoryId?: string;
+  cardId?: string;
 }
 
 export interface Goal {

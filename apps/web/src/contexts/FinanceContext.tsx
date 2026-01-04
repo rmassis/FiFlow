@@ -107,8 +107,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             // Map Transactions IDs to Names for Frontend
             if (transData) {
                 const mappedTransactions = transData.map((t: any) => {
-                    const cat = rawCategories.find((c: any) => c.id === t.category_id);
-                    const acc = rawAccounts.find((a: any) => a.id === t.account_id);
+                    const cat = (catData || []).find((c: any) => c.id === t.category_id);
+                    const acc = (accData || []).find((a: any) => a.id === t.account_id);
+                    const card = (cardData || []).find((c: any) => c.id === t.card_id);
 
                     return {
                         id: t.id,
@@ -118,7 +119,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         type: t.type,
                         status: t.status,
                         category: cat ? cat.name : 'Sem Categoria',
-                        account: acc ? acc.name : 'Sem Conta',
+                        account: acc ? acc.name : (card ? card.name : 'Sem Conta'),
                         subcategory: t.subcategory // Map from DB
                     };
                 });
@@ -206,33 +207,46 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             }
         }
 
-        // 2. Resolve Account ID (optional but recommended if linked)
-        // item.account is string (name) based on types.ts
-        let accountId: string | null = item.accountId || null; // Use provided ID first
+        // 2. Resolve Account or Card ID
+        let finalAccountId: string | null = item.accountId || null;
+        let finalCardId: string | null = item.cardId || null;
 
-        if (!accountId && item.account) {
-            const normalizedAcc = item.account.trim();
-            const existingAcc = accounts.find(a => a.name.toLowerCase() === normalizedAcc.toLowerCase());
-            if (existingAcc) {
-                accountId = existingAcc.id;
+        // If we only have accountId from generic import but it's actually a card
+        if (finalAccountId && !finalCardId) {
+            const isCard = cards.some(c => c.id === finalAccountId);
+            if (isCard) {
+                finalCardId = finalAccountId;
+                finalAccountId = null;
             }
-            // If not found, we could default to null or try to guess. Keep null if not strict.
         }
 
-        // Prepare payload matching DB schema snake_case
-        // Ensure date is YYYY-MM-DD to match Postgres DATE type and avoid status casting issues
-        const formattedDate = new Date(item.date).toISOString().split('T')[0];
+        // 3. Prepare payload matching DB schema snake_case
+        // Ensure date is YYYY-MM-DD to match Postgres DATE type
+        let formattedDate: string;
+        try {
+            const dateStr = item.date;
+            if (typeof dateStr === 'string' && dateStr.includes('/')) {
+                const [day, month, year] = dateStr.split('/');
+                formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            } else {
+                formattedDate = new Date(dateStr).toISOString().split('T')[0];
+            }
+        } catch (e) {
+            console.error('Erro ao formatar data:', item.date, e);
+            formattedDate = new Date().toISOString().split('T')[0];
+        }
 
         const payload: any = {
             user_id: user.id,
             description: item.description,
             amount: item.amount,
             type: item.type,
-            status: item.status || 'PAID', // Default to PAID
+            status: item.status || 'PAID',
             date: formattedDate,
             category_id: categoryId,
-            account_id: accountId,
-            subcategory: item.subcategory // Add subcategory
+            account_id: finalAccountId,
+            card_id: finalCardId,
+            subcategory: item.subcategory
         };
 
         // Remove undefined keys

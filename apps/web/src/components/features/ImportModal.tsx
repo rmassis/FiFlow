@@ -520,16 +520,20 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
             alert(`✅ ${importedCount} transações importadas com sucesso!`);
           }
         };
-        processImport();
+        const runProcess = async () => {
+          await processImport();
+          setFiles([]);
+          setSelectedAccountId('');
+          setStep('upload');
+          setPreviewData([]);
+          onClose();
+        };
+        runProcess();
       } else if (duplicateCount > 0) { // Keep else if logic for pure duplicates
         alert(`⚠️ Todas as ${duplicateCount} transações já foram importadas anteriormente.`);
       }
 
-      setFiles([]);
-      setSelectedAccountId('');
-      setStep('upload');
-      setPreviewData([]);
-      onClose();
+
     }
   };
 
