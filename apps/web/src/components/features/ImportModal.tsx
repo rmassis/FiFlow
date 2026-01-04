@@ -396,7 +396,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
       if (allRawTransactions.length > 0) {
         console.log("Chamando categorização IA...", allRawTransactions.length);
 
-        const BATCH_SIZE = 15; // Reduzido de 30 para 15 para evitar rate limit
+        const BATCH_SIZE = 50; // OpenAI suporta lotes maiores (Otimizado para Performance)
         const totalTransactions = allRawTransactions.length;
         let processedCount = 0;
         let allCategorized: any[] = [];
@@ -414,10 +414,9 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
           processedCount += chunk.length;
           setProgress(Math.round((processedCount / totalTransactions) * 100));
 
-          // Delay maior entre lotes para respeitar limite da API gratuita
-          // 2 segundos de pausa se houver mais lotes
+          // Pequeno delay para permitir atualização da UI, sem penalizar performance
           if (i + BATCH_SIZE < totalTransactions) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            await new Promise(resolve => setTimeout(resolve, 100));
           }
         }
 
