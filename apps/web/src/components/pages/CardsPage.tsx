@@ -216,7 +216,7 @@ const CardsPage: React.FC = () => {
                 <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-1000 ${limitPercentage > 90 ? 'bg-rose-500' :
-                        limitPercentage > 70 ? 'bg-amber-500' : 'bg-indigo-500'
+                      limitPercentage > 70 ? 'bg-amber-500' : 'bg-indigo-500'
                       }`}
                     style={{ width: `${Math.min(limitPercentage, 100)}%` }}
                   ></div>
@@ -243,72 +243,78 @@ const CardsPage: React.FC = () => {
         })}
       </div>
 
-      {/* Modal matching "Novo Cartão" Design */}
+      {/* Modal matching "Import Data" White Design */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-300/90 backdrop-blur-xl w-full max-w-lg rounded-[32px] shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden border border-white/20">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-lg rounded-[32px] shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col overflow-hidden">
+
             {/* Header */}
-            <div className="px-8 py-6 flex justify-between items-start">
+            <div className="p-8 pb-0 flex justify-between items-center bg-white flex-shrink-0">
               <div>
                 <h3 className="text-2xl font-bold text-slate-800">
                   {editingCard ? 'Editar Cartão' : 'Novo Cartão'}
                 </h3>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Dados do Cartão</p>
+                <p className="text-sm text-slate-500 mt-1">Preencha os dados do cartão de crédito</p>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="p-2 bg-white/50 hover:bg-white rounded-full text-slate-500 transition-all shadow-sm"
+                className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400"
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveCard} className="px-8 pb-8 space-y-5">
+            <form onSubmit={handleSaveCard} className="p-8 space-y-5 overflow-y-auto custom-scrollbar">
 
               {/* Row 1 */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Nome do Cartão</label>
+                  <label className="text-xs font-bold text-slate-700 ml-1">Nome do Cartão</label>
                   <input
                     name="name"
                     defaultValue={editingCard?.name}
                     placeholder="Inter Gold"
-                    className="w-full bg-white border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-800 shadow-sm focus:ring-2 focus:ring-indigo-500/50 outline-none"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-slate-400"
                     required
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Bandeira</label>
-                  <select
-                    name="brand"
-                    defaultValue={editingCard?.brand || 'MASTERCARD'}
-                    className="w-full bg-white border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-800 shadow-sm focus:ring-2 focus:ring-indigo-500/50 outline-none"
-                    required
-                  >
-                    <option value="MASTERCARD">Mastercard</option>
-                    <option value="VISA">Visa</option>
-                    <option value="AMEX">Amex</option>
-                    <option value="ELO">Elo</option>
-                  </select>
+                  <label className="text-xs font-bold text-slate-700 ml-1">Bandeira</label>
+                  <div className="relative">
+                    <select
+                      name="brand"
+                      defaultValue={editingCard?.brand || 'MASTERCARD'}
+                      className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all pr-10"
+                      required
+                    >
+                      <option value="MASTERCARD">Mastercard</option>
+                      <option value="VISA">Visa</option>
+                      <option value="AMEX">Amex</option>
+                      <option value="ELO">Elo</option>
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                      <CardIcon size={16} />
+                    </div>
+                  </div>
                 </div>
               </div>
 
               {/* Row 2 */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Últimos 4 Dígitos</label>
+                  <label className="text-xs font-bold text-slate-700 ml-1">Últimos 4 Dígitos</label>
                   <input
                     name="lastDigits"
                     defaultValue={editingCard?.lastDigits}
                     maxLength={4}
                     placeholder="1345"
-                    className="w-full bg-white border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-800 shadow-sm focus:ring-2 focus:ring-indigo-500/50 outline-none"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-slate-400"
                     required
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Cor do Cartão</label>
-                  <div className="relative bg-white rounded-xl shadow-sm flex items-center pr-2">
+                  <label className="text-xs font-bold text-slate-700 ml-1">Cor do Cartão</label>
+                  <div className="relative bg-slate-50 border border-slate-200 rounded-xl flex items-center pr-2 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all">
                     <div className="pl-3 text-slate-400">
                       <Palette size={16} />
                     </div>
@@ -316,67 +322,78 @@ const CardsPage: React.FC = () => {
                       name="color"
                       type="color"
                       defaultValue={editingCard?.color || '#ffd700'}
-                      className="w-full h-11 bg-transparent border-none cursor-pointer rounded-xl"
+                      className="w-full h-[46px] bg-transparent border-none cursor-pointer rounded-xl"
                       required
                     />
                   </div>
                 </div>
               </div>
 
-              {/* White Container for Details */}
-              <div className="bg-white rounded-[24px] p-6 shadow-sm space-y-4">
+              <div className="my-2 h-px bg-slate-100"></div>
+
+              {/* Financial Details */}
+              <div className="space-y-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Limite Total (R$)</label>
-                  <input
-                    name="limit"
-                    type="number"
-                    defaultValue={editingCard?.limit}
-                    placeholder="15000"
-                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-lg font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500/20 outline-none"
-                    required
-                  />
+                  <label className="text-xs font-bold text-slate-700 ml-1">Limite Total (R$)</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">R$</span>
+                    <input
+                      name="limit"
+                      type="number"
+                      defaultValue={editingCard?.limit}
+                      placeholder="15000"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-lg font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-slate-400"
+                      required
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Dia de Fechamento</label>
-                    <input
-                      name="closingDay"
-                      type="number"
-                      min="1" max="31"
-                      defaultValue={editingCard?.closingDay}
-                      placeholder="04"
-                      className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500/20 outline-none"
-                      required
-                    />
+                    <label className="text-xs font-bold text-slate-700 ml-1">Dia de Fechamento</label>
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                      <input
+                        name="closingDay"
+                        type="number"
+                        min="1" max="31"
+                        defaultValue={editingCard?.closingDay}
+                        placeholder="04"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-slate-400"
+                        required
+                      />
+                    </div>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Dia de Vencimento</label>
-                    <input
-                      name="dueDay"
-                      type="number"
-                      min="1" max="31"
-                      defaultValue={editingCard?.dueDay}
-                      placeholder="10"
-                      className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500/20 outline-none"
-                      required
-                    />
+                    <label className="text-xs font-bold text-slate-700 ml-1">Dia de Vencimento</label>
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                      <input
+                        name="dueDay"
+                        type="number"
+                        min="1" max="31"
+                        defaultValue={editingCard?.dueDay}
+                        placeholder="10"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-slate-400"
+                        required
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="pt-2 flex items-center justify-between gap-4">
+              {/* Footer / Actions */}
+              <div className="pt-6 mt-4 flex items-center gap-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-6 py-3 text-slate-500 font-bold hover:text-slate-700 transition-colors uppercase tracking-widest text-xs"
+                  className="px-6 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition-all"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/30 flex items-center justify-center gap-2 uppercase tracking-wide text-xs"
+                  className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 active:scale-95 flex items-center justify-center gap-2"
                 >
                   <CheckCircle2 size={18} strokeWidth={3} />
                   Salvar Cartão
