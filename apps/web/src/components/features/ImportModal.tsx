@@ -673,6 +673,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
                     <th className="px-5 py-4 text-xs font-bold text-slate-500 uppercase">Data</th>
                     <th className="px-5 py-4 text-xs font-bold text-slate-500 uppercase">Descrição</th>
                     <th className="px-5 py-4 text-xs font-bold text-slate-500 uppercase">Categoria</th>
+                    <th className="px-5 py-4 text-xs font-bold text-slate-500 uppercase">Subcategoria</th>
                     <th className="px-5 py-4 text-xs font-bold text-slate-500 uppercase text-right">Valor</th>
                     <th className="px-5 py-4 text-xs font-bold text-slate-500 uppercase text-center">Confiança</th>
                   </tr>
@@ -681,9 +682,12 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
                   {previewData.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="px-5 py-4 text-sm text-slate-600 font-medium whitespace-nowrap">{item.date}</td>
-                      <td className="px-5 py-4 text-sm text-slate-800 font-bold">{item.description}</td>
+                      <td className="px-5 py-4 text-sm text-slate-800 font-bold max-w-[200px] truncate" title={item.description}>{item.description}</td>
                       <td className="px-5 py-4">
                         <span className="text-xs font-extrabold text-slate-700 uppercase">{item.category}</span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className="text-xs font-semibold text-slate-500 uppercase">{item.subcategory || '-'}</span>
                       </td>
                       <td className={`px-5 py-4 text-sm font-bold text-right whitespace-nowrap ${item.type === 'INCOME' ? 'text-emerald-600' : 'text-slate-900'}`}>
                         {item.type === 'INCOME' ? '+' : '-'} R$ {item.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}

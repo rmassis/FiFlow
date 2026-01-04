@@ -116,7 +116,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
                         type: t.type,
                         status: t.status,
                         category: cat ? cat.name : 'Sem Categoria',
-                        account: acc ? acc.name : 'Sem Conta'
+                        account: acc ? acc.name : 'Sem Conta',
+                        subcategory: t.subcategory // Map from DB
                     };
                 });
                 console.log('Mapped Transactions:', mappedTransactions);
@@ -225,7 +226,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             status: item.status || 'PAID', // Default to PAID
             date: formattedDate,
             category_id: categoryId,
-            account_id: accountId
+            account_id: accountId,
+            subcategory: item.subcategory // Add subcategory
         };
 
         // Remove undefined keys
@@ -256,7 +258,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 type: data.type,
                 status: data.status,
                 category: savedCat ? savedCat.name : (item.category || 'Sem Categoria'),
-                account: savedAcc ? savedAcc.name : (item.account || 'Sem Conta')
+                account: savedAcc ? savedAcc.name : (item.account || 'Sem Conta'),
+                subcategory: data.subcategory // Return saved subcategory
             };
         }
     };

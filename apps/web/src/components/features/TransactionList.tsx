@@ -151,6 +151,7 @@ const TransactionList: React.FC = () => {
                             </th>
                             <th className="px-5 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Descrição</th>
                             <th className="px-5 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Categoria</th>
+                            <th className="px-5 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Subcategoria</th>
                             <th className="px-5 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-right">Valor</th>
                             <th className="px-5 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Status</th>
                             <th className="px-5 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Ações</th>
@@ -159,7 +160,7 @@ const TransactionList: React.FC = () => {
                     <tbody className="divide-y divide-slate-50">
                         {filteredTransactions.length === 0 ? (
                             <tr>
-                                <td colSpan={7} className="px-8 py-12 text-center text-slate-400 text-sm italic">
+                                <td colSpan={8} className="px-8 py-12 text-center text-slate-400 text-sm italic">
                                     Nenhum lançamento encontrado.
                                 </td>
                             </tr>
@@ -189,6 +190,11 @@ const TransactionList: React.FC = () => {
                                     <td className="px-5 py-6">
                                         <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-slate-100/80 text-slate-600 text-[11px] font-bold uppercase tracking-wide border border-slate-200/50">
                                             {t.category}
+                                        </span>
+                                    </td>
+                                    <td className="px-5 py-6">
+                                        <span className="text-xs font-semibold text-slate-500 uppercase">
+                                            {t.subcategory || '-'}
                                         </span>
                                     </td>
                                     <td className={`px-5 py-6 text-sm font-extrabold text-right whitespace-nowrap ${t.type === 'INCOME' ? 'text-emerald-600' : 'text-slate-800'
