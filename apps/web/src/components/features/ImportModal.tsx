@@ -28,7 +28,7 @@ interface PreviewTransaction {
 }
 
 const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) => {
-  const { accounts, cards, addAccount, transactions, addTransaction, categories } = useFinance();
+  const { accounts, cards, addAccount, transactions, addTransaction, addTransactions, categories } = useFinance();
   const { isPro, isFree } = useSubscription();
   const [tab, setTab] = useState<'files' | 'belvo'>('files');
   const [step, setStep] = useState<'upload' | 'preview'>('upload');
@@ -499,29 +499,29 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
 
       if (newTransactions.length > 0) {
         const processImport = async () => {
-          let importedCount = 0;
-          for (const item of newTransactions) {
-            await addTransaction({
-              date: item.date,
-              description: item.description,
-              amount: item.amount,
-              type: item.type as 'INCOME' | 'EXPENSE',
-              category: item.category,
-              subcategory: item.subcategory,
-              status: 'PAID',
-              accountId: selectedAccountId === 'AUTO_CREATE' ? undefined : selectedAccountId,
-              account: accounts.find(a => a.id === selectedAccountId)?.name || ''
-            });
-            importedCount++;
-          }
-          if (duplicateCount > 0) {
-            alert(`✅ Importação concluída com sucesso!\n\n📥 Importados: ${importedCount}\n🚫 Duplicados ignorados: ${duplicateCount}`);
-          } else {
-            alert(`✅ ${importedCount} transações importadas com sucesso!`);
-          }
+          const toImport = newTransactions.map(item => ({
+            date: item.date,
+            description: item.description,
+            amount: item.amount,
+            type: item.type as 'INCOME' | 'EXPENSE',
+            category: item.category,
+            subcategory: item.subcategory,
+            status: 'PAID' as const,
+            accountId: selectedAccountId === 'AUTO_CREATE' ? undefined : selectedAccountId,
+            account: accounts.find(a => a.id === selectedAccountId)?.name || ''
+          }));
+
+          await addTransactions(toImport);
         };
         const runProcess = async () => {
           await processImport();
+
+          if (duplicateCount > 0) {
+            alert(`✅ Importação concluída com sucesso!\n\n📥 Importados: ${newTransactions.length}\n🚫 Duplicados ignorados: ${duplicateCount}`);
+          } else {
+            alert(`✅ ${newTransactions.length} transações importadas com sucesso!`);
+          }
+
           setFiles([]);
           setSelectedAccountId('');
           setStep('upload');

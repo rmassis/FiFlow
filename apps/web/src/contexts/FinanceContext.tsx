@@ -13,6 +13,7 @@ interface FinanceContextData {
 
     // Transactions
     addTransaction: (transaction: Omit<Transaction, 'id'>) => Promise<Transaction | null>;
+    addTransactions: (transactions: Omit<Transaction, 'id'>[]) => Promise<void>;
     updateTransaction: (id: string, updated: Partial<Transaction>) => Promise<void>;
     deleteTransaction: (id: string) => Promise<void>;
     deleteTransactions: (ids: string[]) => Promise<void>;
@@ -280,6 +281,91 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 account: savedAcc ? savedAcc.name : (item.account || 'Sem Conta'),
                 subcategory: data.subcategory // Return saved subcategory
             };
+        }
+    };
+
+    const addTransactions = async (items: Omit<Transaction, 'id'>[]): Promise<void> => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const resolvedCategoryIds = new Map<string, string>();
+        const payloads: any[] = [];
+        const currentCategories = [...categories];
+
+        for (const item of items) {
+            let categoryId = item.categoryId || null;
+
+            if (!categoryId && item.category) {
+                const normalizedCat = item.category.trim();
+                const existingCat = currentCategories.find(c => c.name.toLowerCase() === normalizedCat.toLowerCase());
+
+                if (existingCat) {
+                    categoryId = existingCat.id;
+                } else {
+                    if (resolvedCategoryIds.has(normalizedCat)) {
+                        categoryId = resolvedCategoryIds.get(normalizedCat)!;
+                    } else {
+                        const { data: newCat } = await supabase.from('categories').insert({
+                            user_id: user.id,
+                            name: normalizedCat,
+                            icon: 'HelpCircle',
+                            color: '#94a3b8'
+                        }).select().single();
+
+                        if (newCat) {
+                            categoryId = newCat.id;
+                            resolvedCategoryIds.set(normalizedCat, newCat.id);
+                            currentCategories.push(newCat as any);
+                        }
+                    }
+                }
+            }
+
+            let finalAccountId: string | null = item.accountId || null;
+            let finalCardId: string | null = item.cardId || null;
+
+            if (finalAccountId && !finalCardId) {
+                const isCard = cards.some(c => c.id === finalAccountId);
+                if (isCard) {
+                    finalCardId = finalAccountId;
+                    finalAccountId = null;
+                }
+            }
+
+            let formattedDate: string;
+            try {
+                const dateStr = item.date;
+                if (typeof dateStr === 'string' && dateStr.includes('/')) {
+                    const [day, month, year] = dateStr.split('/');
+                    formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                } else {
+                    formattedDate = new Date(dateStr).toISOString().split('T')[0];
+                }
+            } catch (e) {
+                formattedDate = new Date().toISOString().split('T')[0];
+            }
+
+            payloads.push({
+                user_id: user.id,
+                description: item.description,
+                amount: item.amount,
+                type: item.type,
+                status: item.status || 'PAID',
+                date: formattedDate,
+                category_id: categoryId,
+                account_id: finalAccountId,
+                card_id: finalCardId,
+                subcategory: item.subcategory
+            });
+        }
+
+        const { error } = await supabase.from('transactions').insert(payloads);
+
+        if (error) {
+            console.error('Bulk insert error:', error);
+            alert(`Erro ao importar transações. Verifique sua conexão.`);
+        } else {
+            await refreshData();
         }
     };
 
@@ -558,7 +644,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         <FinanceContext.Provider value={{
             transactions, categories, budgets, goals, accounts, cards, investments,
             loading, refreshData,
-            addTransaction, updateTransaction, deleteTransaction, deleteTransactions,
+            addTransaction, addTransactions, updateTransaction, deleteTransaction, deleteTransactions,
             addCategory, updateCategory, deleteCategory, updateBudget, deleteBudget,
             addGoal, updateGoal, deleteGoal,
             addAccount, updateAccount, deleteAccount,
