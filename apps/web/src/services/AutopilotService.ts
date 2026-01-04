@@ -98,9 +98,21 @@ const BATCH_INSTRUCTION = `
 Sua tarefa é classificar uma lista de transações cruas (CSV/OFX) para as categorias do usuário.
 
 **Regras de Prioridade:**
-1. **Match Exato:** Se a descrição bate com um padrão conhecido E uma categoria de usuário existente, use-a.
+1. **Match Exato/Histórico:** Se a descrição bate com um padrão conhecido E uma categoria de usuário existente, use-a.
 2. **Semântica:** Se não houver match exato, encontre a categoria de usuário mais próxima semanticamente.
-3. **Novo:** Se absolutamente nada se encaixar, use a Taxonomia Padrão (Alimentação, Transporte, Moradia, Lazer, Saúde, Compras).
+3. **Taxonomia Padrão:** Se absolutamente nada se encaixar nas categorias do usuário, use a TAXONOMIA PADRÃO abaixo para sugerir uma nova ou classificar genericamente.
+
+**TAXONOMIA PADRÃO (Guia de Referência):**
+- **Moradia:** Aluguel, Condomínio, Luz, Água, Internet, Manutenção, Gás.
+- **Alimentação:** Mercado, Restaurante, Ifood, Padaria, Feira.
+- **Transporte:** Uber, Gasolina, IPVA, Mecânico, Estacionamento, Transporte Público.
+- **Saúde:** Farmácia, Médico, Dentista, Plano de Saúde, Exames.
+- **Lazer:** Cinema, Streaming (Netflix/Spotify), Vios, Jogos, Bares.
+- **Educação:** Faculdade, Cursos, Material Escolar, Livros.
+- **Compras:** Roupas, Eletrônicos, Presentes, Shopee/Amazon (se não especificado).
+- **Serviços:** Barbearia, Manicure, Lavanderia, Assinaturas.
+- **Investimentos:** CDB, Ações, Tesouro, Cripto, Poupança.
+- **Renda:** Salário, Freelance, Reembolso, Dividendos, Venda.
 
 **Formato de Resposta (JSON):**
 Retorne um objeto:
@@ -108,8 +120,8 @@ Retorne um objeto:
   "transacoes_categorizadas": [
     {
       "id": "...",
-      "categoria_principal": "Nome da Categoria (Existente ou Nova)",
-      "classificacao": "Subclassificação (ex: Uber, Mercado)",
+      "categoria_principal": "Nome da Categoria",
+      "classificacao": "Subclassificação Específica (ex: 'Uber' para Transporte, 'McDonalds' para Alimentação)",
       "confianca": "alta" | "media" | "baixa"
     }
   ]
