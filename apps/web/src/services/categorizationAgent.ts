@@ -1,9 +1,12 @@
 /// <reference types="vite/client" />
-import { GoogleGenAI } from "@google/genai";
+import OpenAI from "openai";
 
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || '' });
+const openai = new OpenAI({
+  apiKey: import.meta.env.VITE_OPENAI_API_KEY || '',
+  dangerouslyAllowBrowser: true
+});
 
-const MODEL_NAME = "gemini-2.0-flash-exp";
+const MODEL_NAME = "gpt-4o-mini";
 
 const SYSTEM_PROMPT = `
 # SISTEMA DE CATEGORIZAÇÃO INTELIGENTE FIFLOW v2.0
