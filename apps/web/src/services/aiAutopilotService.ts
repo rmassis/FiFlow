@@ -1,11 +1,14 @@
-import { GoogleGenAI } from "@google/genai";
+import OpenAI from "openai";
 import { Transaction, Budget, Goal, Category } from "../types";
 
-// Initialize Gemini Client
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || '' });
+// Initialize OpenAI Client
+const openai = new OpenAI({
+  apiKey: import.meta.env.VITE_OPENAI_API_KEY || '',
+  dangerouslyAllowBrowser: true // Allowed for this client-side demo, ideally use backend
+});
 
 // Model Configuration
-const MODEL_NAME = "gemini-2.0-flash-exp";
+const MODEL_NAME = "gpt-4o"; // Using GPT-4o for best reasoning
 
 export interface AutopilotResponse {
   message: string;
@@ -356,25 +359,18 @@ export const processUserCommand = async (
       }
     };
 
-    const response = await ai.models.generateContent({
+    const completion = await openai.chat.completions.create({
       model: MODEL_NAME,
-      contents: JSON.stringify(contextData),
-      config: {
-        systemInstruction: SYSTEM_PROMPT,
-        temperature: 0.3, // Lower temperature for more deterministic responses
-        responseMimeType: "application/json"
-      },
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: JSON.stringify(contextData) }
+      ],
+      temperature: 0.3,
+      response_format: { type: "json_object" }
     });
 
-    const textResponse = response.text || "{}";
-
-    // Remove markdown code blocks if present (extra safety)
-    const cleanedResponse = textResponse
-      .replace(/```json\n?/g, '')
-      .replace(/```\n?/g, '')
-      .trim();
-
-    const parsed = JSON.parse(cleanedResponse);
+    const resultText = completion.choices[0].message.content || "{}";
+    const parsed = JSON.parse(resultText);
 
     // Validate response structure
     if (!parsed.message || typeof parsed.confidence !== 'number') {
@@ -387,9 +383,9 @@ export const processUserCommand = async (
     return parsed as AutopilotResponse;
 
   } catch (error) {
-    console.error("Autopilot Error:", error);
+    console.error("Autopilot (OpenAI) Error:", error);
     return {
-      message: "Desculpe, tive um problema ao processar seu comando. Tente novamente.",
+      message: "Desculpe, tive um problema ao processar seu comando com a OpenAI. Tente novamente.",
       confidence: 0.0,
       clarification: {
         reason: "Erro interno no processamento",
