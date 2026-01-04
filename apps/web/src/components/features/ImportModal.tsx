@@ -28,7 +28,7 @@ interface PreviewTransaction {
 }
 
 const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) => {
-  const { accounts, addAccount, transactions } = useFinance();
+  const { accounts, addAccount, transactions, addTransaction } = useFinance();
   const { isPro, isFree } = useSubscription();
   const [tab, setTab] = useState<'files' | 'belvo'>('files');
   const [step, setStep] = useState<'upload' | 'preview'>('upload');
