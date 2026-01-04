@@ -28,7 +28,7 @@ interface PreviewTransaction {
 }
 
 const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) => {
-  const { accounts, addAccount } = useFinance();
+  const { accounts, addAccount, transactions } = useFinance();
   const { isPro, isFree } = useSubscription();
   const [tab, setTab] = useState<'files' | 'belvo'>('files');
   const [step, setStep] = useState<'upload' | 'preview'>('upload');
@@ -468,9 +468,45 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport }) 
     }
   };
 
+  // Deduplication Logic - Updated handleConfirm
   const handleConfirm = () => {
     if (previewData.length > 0 && selectedAccountId) {
-      onImport(previewData, selectedAccountId);
+
+      const existingTransactions = transactions || [];
+      const newTransactions: PreviewTransaction[] = [];
+      let duplicateCount = 0;
+
+      // Filter duplicates
+      for (const item of previewData) {
+        // Unique key: Date + Amount + Description (normalized)
+        const isDuplicate = existingTransactions.some(existing => {
+          const sameDate = existing.date === item.date;
+          // Use small epsilon for float comparison just in case, though usually exact for currency
+          const sameAmount = Math.abs(existing.amount - item.amount) < 0.01;
+          const sameDescription = existing.description.toLowerCase().trim() === item.description.toLowerCase().trim();
+
+          return sameDate && sameAmount && sameDescription;
+        });
+
+        if (isDuplicate) {
+          duplicateCount++;
+        } else {
+          newTransactions.push(item);
+        }
+      }
+
+      if (newTransactions.length > 0) {
+        onImport(newTransactions, selectedAccountId);
+
+        if (duplicateCount > 0) {
+          alert(`✅ Importação concluída com sucesso!\n\n📥 Importados: ${newTransactions.length}\n🚫 Duplicados ignorados: ${duplicateCount}`);
+        } else {
+          // Default success message handled by parent or omitted
+        }
+      } else if (duplicateCount > 0) {
+        alert(`⚠️ Todas as ${duplicateCount} transações já foram importadas anteriormente.`);
+      }
+
       setFiles([]);
       setSelectedAccountId('');
       setStep('upload');

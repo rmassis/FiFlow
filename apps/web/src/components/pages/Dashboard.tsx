@@ -19,11 +19,11 @@ const Dashboard: React.FC = () => {
   } = useFinance();
 
   const totalIncome = transactions
-    .filter(t => t.type === 'INCOME')
+    .filter(t => t.type === 'INCOME' && !t.category.toLowerCase().includes('investimento') && !t.category.toLowerCase().includes('transferência'))
     .reduce((acc, curr) => acc + curr.amount, 0);
 
   const totalExpenses = transactions
-    .filter(t => t.type === 'EXPENSE')
+    .filter(t => t.type === 'EXPENSE' && !t.category.toLowerCase().includes('investimento') && !t.category.toLowerCase().includes('transferência'))
     .reduce((acc, curr) => acc + curr.amount, 0);
 
   const balance = totalIncome - totalExpenses;
@@ -60,8 +60,13 @@ const Dashboard: React.FC = () => {
       if (diffMonths < months && diffMonths >= 0) {
         const key = d.toLocaleString('pt-BR', { month: 'short' });
         if (data[key]) {
-          if (t.type === 'INCOME') data[key].income += t.amount;
-          if (t.type === 'EXPENSE') data[key].expenses += t.amount;
+          // Exclude Investments and Transfers from Chart
+          const isInvestment = t.category.toLowerCase().includes('investimento') || t.category.toLowerCase().includes('transferência');
+
+          if (!isInvestment) {
+            if (t.type === 'INCOME') data[key].income += t.amount;
+            if (t.type === 'EXPENSE') data[key].expenses += t.amount;
+          }
         }
       }
     });
