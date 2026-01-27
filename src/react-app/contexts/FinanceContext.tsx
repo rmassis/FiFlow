@@ -270,6 +270,24 @@ export const useFinanceStore = create<FinanceStore>()(
                 return data.user?.id || null;
             },
 
+            createGuestUser: async () => {
+                const guestId = crypto.randomUUID().slice(0, 8);
+                const email = `guest_${guestId}@fiflow.local`;
+                console.log("Creating guest user:", email);
+
+                const userId = await get().ensureUser(email);
+
+                if (userId) {
+                    // Initialize local profile for guest
+                    await get().updateUser({
+                        personalInfo: { fullName: "Visitante", cpf: "" },
+                        contactInfo: { email, emailVerified: false, phone: "", phoneVerified: false },
+                        address: { zipCode: "", street: "", number: "", neighborhood: "", city: "", state: "", country: "Brasil" }
+                    });
+                }
+                return userId;
+            },
+
             updatePersonalInfo: async (info) => {
                 const currentUser = get().user;
                 if (!currentUser) return;
@@ -310,31 +328,38 @@ export const useFinanceStore = create<FinanceStore>()(
             addBankAccount: async (account) => {
                 let { data: { user } } = await supabase.auth.getUser();
 
-                // Fallback check
+                // Fallback: Check local email, then Guest Generation
                 if (!user) {
                     const localUser = get().user;
                     if (localUser?.contactInfo?.email) {
                         await get().ensureUser(localUser.contactInfo.email);
-                        const { data } = await supabase.auth.getUser();
-                        user = data.user;
+                    } else {
+                        // Auto-create Guest
+                        await get().createGuestUser();
                     }
+                    const { data } = await supabase.auth.getUser();
+                    user = data.user;
                 }
 
                 if (!user) {
-                    alert("Erro: Salve seus dados pessoais antes de criar contas.");
-                    return;
+                    console.error("Critical: Failed to resolve user for bank account creation.");
+                    // Try to save locally at least if we really can't auth (DB sync will fail, but UI won't break)
+                    // But let's proceed to try formatting the object correctly.
                 }
 
-                const accountWithUserId = { ...account, userId: user.id };
+                const userId = user?.id || get().user?.id || 'temp-id';
+                const accountWithUserId = { ...account, userId };
 
                 // Optimistic
                 set((state) => ({ bankAccounts: [...state.bankAccounts, accountWithUserId] }));
 
-                try {
-                    const { error } = await supabase.from('bank_accounts').insert(mapBankAccountToDB(accountWithUserId));
-                    if (error) console.error("DB Insert Error", error);
-                } catch (err) {
-                    console.error("DB Insert Error", err);
+                if (user) {
+                    try {
+                        const { error } = await supabase.from('bank_accounts').insert(mapBankAccountToDB(accountWithUserId));
+                        if (error) console.error("DB Insert Error", error);
+                    } catch (err) {
+                        console.error("DB Insert Error", err);
+                    }
                 }
             },
 
@@ -375,25 +400,26 @@ export const useFinanceStore = create<FinanceStore>()(
                     const localUser = get().user;
                     if (localUser?.contactInfo?.email) {
                         await get().ensureUser(localUser.contactInfo.email);
-                        const { data } = await supabase.auth.getUser();
-                        user = data.user;
+                    } else {
+                        // Auto-create Guest
+                        await get().createGuestUser();
                     }
+                    const { data } = await supabase.auth.getUser();
+                    user = data.user;
                 }
 
-                if (!user) {
-                    alert("Erro: Salve seus dados pessoais antes de criar cartões.");
-                    return;
-                }
-
-                const cardWithUserId = { ...card, userId: user.id };
+                const userId = user?.id || get().user?.id || 'temp-id';
+                const cardWithUserId = { ...card, userId };
 
                 set((state) => ({ creditCards: [...state.creditCards, cardWithUserId] }));
 
-                try {
-                    const { error } = await supabase.from('credit_cards').insert(mapCreditCardToDB(cardWithUserId));
-                    if (error) console.error("DB Insert Error", error);
-                } catch (err) {
-                    console.error("DB Insert Error", err);
+                if (user) {
+                    try {
+                        const { error } = await supabase.from('credit_cards').insert(mapCreditCardToDB(cardWithUserId));
+                        if (error) console.error("DB Insert Error", error);
+                    } catch (err) {
+                        console.error("DB Insert Error", err);
+                    }
                 }
             },
 
