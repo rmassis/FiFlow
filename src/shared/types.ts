@@ -196,119 +196,76 @@ export interface PrivacySettings {
 
 // ===== CONTAS E CARTÕES =====
 
-// Conta Bancária (Débito ou Corrente)
 export interface BankAccount {
   id: string;
-  userId: string;                       // Referência ao usuário
+  userId?: string;
+  name: string;
+  type: 'corrente' | 'poupanca' | 'investimento' | 'salario' | 'pagamento' | 'carteira';
+  bank: string;
+  balance: number;
+  agency?: string;
+  number?: string;
+  currency: string;
+  color: string;
+  icon: string;
+  isPrimary: boolean;
   createdAt: Date;
   updatedAt: Date;
-
-  // Identificação da Conta
-  accountName: string;                  // Nome customizado (ex: "Nubank Principal")
-  accountType: 'corrente' | 'poupanca' | 'salario' | 'pagamento';
-
-  // Dados Bancários
-  bankInfo: BankInfo;
-
-  // Dados da Conta
-  accountNumber: string;                // Número da conta
-  accountDigit: string;                 // Dígito verificador
-  agency: string;                       // Agência
-  agencyDigit?: string;                 // Dígito da agência (opcional)
-
-  // Saldos
-  balance: number;                      // Saldo atual
-  availableBalance: number;             // Saldo disponível
-
-  // Configurações
-  isActive: boolean;                    // Conta ativa?
-  isPrimary: boolean;                   // Conta principal?
-  color: string;                        // Cor para identificação visual
-  icon: string;                         // Ícone para identificação visual
-
-  // Importação
-  allowAutoImport: boolean;             // Permite importação automática?
-  lastSyncDate?: Date;                  // Data da última sincronização
 }
 
-// Informações Bancárias
-export interface BankInfo {
-  bankCode: string;                     // Código do banco (3 dígitos)
-  bankName: string;                     // Nome do banco
-  bankLogo?: string;                    // URL do logo do banco
-}
-
-// Cartão de Crédito
 export interface CreditCard {
   id: string;
-  userId: string;                       // Referência ao usuário
+  userId?: string;
+  name: string;
+  network: 'visa' | 'mastercard' | 'elo' | 'amex' | 'hipercard' | 'outro';
+  lastFourDigits: string;
+  limit: number;
+  usedLimit: number;
+  closingDay: number;
+  dueDay: number;
+  color: string;
+  icon: string;
+  isPrimary: boolean;
   createdAt: Date;
   updatedAt: Date;
-
-  // Identificação do Cartão
-  cardName: string;                     // Nome customizado (ex: "Nubank Roxo")
-  cardNetwork: 'visa' | 'mastercard' | 'elo' | 'amex' | 'hipercard' | 'outros';
-
-  // Dados do Cartão
-  lastFourDigits: string;               // Últimos 4 dígitos (para segurança)
-  cardHolderName: string;               // Nome impresso no cartão
-
-  // Relacionamento Bancário
-  issuingBank: BankInfo;                // Banco emissor
-  linkedBankAccount?: string;           // ID da conta vinculada (opcional)
-
-  // Limites e Fatura
-  creditLimit: number;                  // Limite total do cartão
-  availableLimit: number;               // Limite disponível
-  usedLimit: number;                    // Limite utilizado
-
-  // Fechamento e Vencimento
-  closingDay: number;                   // Dia do fechamento da fatura (1-31)
-  dueDay: number;                       // Dia do vencimento da fatura (1-31)
-
-  // Faturas
-  currentInvoice: Invoice;              // Fatura atual
-
-  // Configurações
-  isActive: boolean;                    // Cartão ativo?
-  isPrimary: boolean;                   // Cartão principal?
-  color: string;                        // Cor para identificação visual
-  icon: string;                         // Ícone para identificação visual
 }
 
-// Fatura do Cartão
 export interface Invoice {
   id: string;
   creditCardId: string;
-  referenceMonth: string;               // Mês de referência (YYYY-MM)
-  closingDate: Date;                    // Data de fechamento
-  dueDate: Date;                        // Data de vencimento
-  totalAmount: number;                  // Valor total da fatura
-  paidAmount: number;                   // Valor pago
-  remainingAmount: number;              // Valor restante
+  referenceMonth: string;
+  closingDate: Date;
+  dueDate: Date;
+  totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
   status: 'aberta' | 'fechada' | 'vencida' | 'paga' | 'paga_parcial';
-  transactions: string[];               // IDs das transações da fatura
+  transactions: string[];
 }
 
 // ===== CONSTANTES =====
 
-// Bancos Brasileiros Principais
-export const BRAZILIAN_BANKS: Record<string, BankInfo> = {
-  '001': { bankCode: '001', bankName: 'Banco do Brasil', bankLogo: '' },
-  '033': { bankCode: '033', bankName: 'Santander', bankLogo: '' },
-  '104': { bankCode: '104', bankName: 'Caixa Econômica Federal', bankLogo: '' },
-  '237': { bankCode: '237', bankName: 'Bradesco', bankLogo: '' },
-  '341': { bankCode: '341', bankName: 'Itaú', bankLogo: '' },
-  '260': { bankCode: '260', bankName: 'Nubank', bankLogo: '' },
-  '077': { bankCode: '077', bankName: 'Inter', bankLogo: '' },
-  '290': { bankCode: '290', bankName: 'PagSeguro', bankLogo: '' },
-  '323': { bankCode: '323', bankName: 'Mercado Pago', bankLogo: '' },
-  '380': { bankCode: '380', bankName: 'PicPay', bankLogo: '' },
-  '102': { bankCode: '102', bankName: 'XP Investimentos', bankLogo: '' },
-  '336': { bankCode: '336', bankName: 'C6 Bank', bankLogo: '' },
-  '212': { bankCode: '212', bankName: 'Banco Original', bankLogo: '' },
-  '389': { bankCode: '389', bankName: 'Banco Mercantil', bankLogo: '' },
-};
+export interface BankInfo {
+  code: string;
+  name: string;
+}
+
+export const BRAZILIAN_BANKS: BankInfo[] = [
+  { code: '001', name: 'Banco do Brasil' },
+  { code: '033', name: 'Santander' },
+  { code: '104', name: 'Caixa Econômica Federal' },
+  { code: '237', name: 'Bradesco' },
+  { code: '341', name: 'Itaú' },
+  { code: '260', name: 'Nubank' },
+  { code: '077', name: 'Inter' },
+  { code: '290', name: 'PagSeguro' },
+  { code: '323', name: 'Mercado Pago' },
+  { code: '380', name: 'PicPay' },
+  { code: '102', name: 'XP Investimentos' },
+  { code: '336', name: 'C6 Bank' },
+  { code: '212', name: 'Banco Original' },
+  { code: '389', name: 'Banco Mercantil' },
+];
 
 // Cores para Contas e Cartões
 export const ACCOUNT_COLORS = [
