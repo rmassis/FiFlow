@@ -5,6 +5,7 @@ import { Goals } from "@/react-app/pages/Goals";
 import { Insights } from "@/react-app/pages/Insights";
 import { Transactions } from "@/react-app/pages/Transactions";
 import Agent from "@/react-app/pages/Agent";
+import Profile from "@/react-app/pages/Profile";
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
         <Route path="/goals" element={<Goals />} />
         <Route path="/insights" element={<Insights />} />
         <Route path="/agent" element={<Agent />} />
+        <Route path="/profile" element={<Profile />} />
       </Routes>
     </Router>
   );

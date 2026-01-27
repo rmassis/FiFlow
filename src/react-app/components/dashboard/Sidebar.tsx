@@ -4,7 +4,8 @@ import {
   Upload,
   Target,
   TrendingUp,
-  Bot
+  Bot,
+  UserCircle
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -15,6 +16,7 @@ const navigation = [
   { name: "Goals", icon: Target, href: "/goals" },
   { name: "Insights", icon: TrendingUp, href: "/insights" },
   { name: "AI Assistant", icon: Bot, href: "/agent" },
+  { name: "Profile", icon: UserCircle, href: "/profile" },
 ];
 
 export function Sidebar() {
