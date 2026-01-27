@@ -64,8 +64,56 @@ app.post("/api/transactions", async (c) => {
     const { transactions }: { transactions: Transaction[] } = await c.req.json();
     const supabase = createSupabaseClient(c.env);
 
+    if (transactions.length === 0) {
+      return c.json({ success: true, count: 0 });
+    }
+
+    // 1. Determine Date Range to fetch relevant existing transactions
+    // We treat dates as strings YYYY-MM-DD for comparison to avoid timezone issues with exact matches
+    const dates = transactions.map(t => new Date(t.date).getTime());
+    const minDate = new Date(Math.min(...dates)).toISOString().split('T')[0];
+    const maxDate = new Date(Math.max(...dates)).toISOString().split('T')[0];
+
+    // 2. Fetch existing transactions in this range
+    const { data: existing, error: fetchError } = await supabase
+      .from('transactions')
+      .select('date, amount, description, bank_account_id, credit_card_id')
+      .gte('date', minDate)
+      .lte('date', maxDate);
+
+    if (fetchError) throw fetchError;
+
+    // 3. Filter out duplicates
+    // Key format: YYYY-MM-DD|amount|description|bankId|cardId
+    const existingSet = new Set(
+      existing?.map(t => {
+        const d = t.date; // already YYYY-MM-DD from DB
+        const amt = t.amount;
+        const desc = t.description;
+        const bank = t.bank_account_id || 'null';
+        const card = t.credit_card_id || 'null';
+        return `${d}|${amt}|${desc}|${bank}|${card}`;
+      })
+    );
+
+    const toInsert = transactions.filter(t => {
+      const d = new Date(t.date).toISOString().split("T")[0];
+      const amt = t.amount;
+      const desc = t.description;
+      const bank = t.bankAccountId || 'null';
+      const card = t.creditCardId || 'null';
+      const key = `${d}|${amt}|${desc}|${bank}|${card}`;
+
+      return !existingSet.has(key);
+    });
+
+    if (toInsert.length === 0) {
+      return c.json({ success: true, count: 0, message: "Todas as transações já foram importadas anteriormente." });
+    }
+
+    // 4. Insert only new transactions
     const { error } = await supabase.from('transactions').insert(
-      transactions.map(t => ({
+      toInsert.map(t => ({
         date: new Date(t.date).toISOString().split("T")[0],
         description: t.description,
         amount: t.amount,
@@ -75,13 +123,19 @@ app.post("/api/transactions", async (c) => {
         confidence: t.confidence,
         needs_review: t.needsReview,
         imported_from: t.importedFrom,
-        imported_at: new Date(t.importedAt).toISOString()
+        imported_at: new Date(t.importedAt).toISOString(),
+        bank_account_id: t.bankAccountId,
+        credit_card_id: t.creditCardId
       }))
     );
 
     if (error) throw error;
 
-    return c.json({ success: true, count: transactions.length });
+    return c.json({
+      success: true,
+      count: toInsert.length,
+      duplicates: transactions.length - toInsert.length
+    });
   } catch (error) {
     console.error("Error saving transactions:", error);
     return c.json({ error: "Erro ao salvar transações" }, 500);
