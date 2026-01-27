@@ -1,77 +1,60 @@
 import { Hono } from "hono";
+import { createSupabaseClient, Env } from "./db";
 
-type Bindings = {
-  DB: D1Database;
-};
-
-const app = new Hono<{ Bindings: Bindings }>();
+const app = new Hono<{ Bindings: Env }>();
 
 // GET /api/dashboard/stats - Get dashboard summary statistics
 app.get("/api/dashboard/stats", async (c) => {
   try {
-    const db = c.env.DB;
+    const supabase = createSupabaseClient(c.env);
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split("T")[0];
+    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split("T")[0];
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const today = now.toISOString().split("T")[0];
 
-    // Current month totals
-    const currentMonthQuery = await db
-      .prepare(
-        `
-        SELECT 
-          type,
-          SUM(amount) as total
-        FROM transactions
-        WHERE date >= ? AND date <= ?
-        GROUP BY type
-      `
-      )
-      .bind(
-        startOfMonth.toISOString().split("T")[0],
-        now.toISOString().split("T")[0]
-      )
-      .all();
+    // Fetch transactions for current month and last month and last 7 days
+    // To minimize requests, we can fetch all from startOfLastMonth
+    // (assuming stats are viewed frequently, optimization involves simpler queries)
+
+    // 1. Current Month Data
+    const { data: currentMonthTx } = await supabase
+      .from('transactions')
+      .select('type, amount')
+      .gte('date', startOfMonth)
+      .lte('date', today);
 
     let currentReceitas = 0;
     let currentDespesas = 0;
 
-    currentMonthQuery.results.forEach((row: any) => {
-      if (row.type === "receita") {
-        currentReceitas = row.total as number;
-      } else if (row.type === "despesa") {
-        currentDespesas = row.total as number;
-      }
-    });
+    if (currentMonthTx) {
+      currentReceitas = currentMonthTx
+        .filter((t: any) => t.type === 'receita')
+        .reduce((sum: number, t: any) => sum + t.amount, 0);
+      currentDespesas = currentMonthTx
+        .filter((t: any) => t.type === 'despesa')
+        .reduce((sum: number, t: any) => sum + t.amount, 0);
+    }
 
-    // Last month totals for comparison
-    const lastMonthQuery = await db
-      .prepare(
-        `
-        SELECT 
-          type,
-          SUM(amount) as total
-        FROM transactions
-        WHERE date >= ? AND date <= ?
-        GROUP BY type
-      `
-      )
-      .bind(
-        startOfLastMonth.toISOString().split("T")[0],
-        endOfLastMonth.toISOString().split("T")[0]
-      )
-      .all();
+    // 2. Last Month Data
+    const { data: lastMonthTx } = await supabase
+      .from('transactions')
+      .select('type, amount')
+      .gte('date', startOfLastMonth)
+      .lte('date', endOfLastMonth);
 
     let lastReceitas = 0;
     let lastDespesas = 0;
 
-    lastMonthQuery.results.forEach((row: any) => {
-      if (row.type === "receita") {
-        lastReceitas = row.total as number;
-      } else if (row.type === "despesa") {
-        lastDespesas = row.total as number;
-      }
-    });
+    if (lastMonthTx) {
+      lastReceitas = lastMonthTx
+        .filter((t: any) => t.type === 'receita')
+        .reduce((sum: number, t: any) => sum + t.amount, 0);
+      lastDespesas = lastMonthTx
+        .filter((t: any) => t.type === 'despesa')
+        .reduce((sum: number, t: any) => sum + t.amount, 0);
+    }
 
     // Calculate variations
     const receitasVariation =
@@ -88,48 +71,39 @@ app.get("/api/dashboard/stats", async (c) => {
     const saldoVariation =
       lastSaldo > 0 ? ((currentSaldo - lastSaldo) / lastSaldo) * 100 : 0;
 
-    // Daily sparkline data (last 7 days)
-    const sparklineQuery = await db
-      .prepare(
-        `
-        SELECT 
-          date,
-          type,
-          SUM(amount) as total
-        FROM transactions
-        WHERE date >= date('now', '-7 days')
-        GROUP BY date, type
-        ORDER BY date ASC
-      `
-      )
-      .all();
+    // 3. Sparkline Data (Last 7 days)
+    const { data: sparklineTx } = await supabase
+      .from('transactions')
+      .select('date, type, amount')
+      .gte('date', sevenDaysAgo)
+      .order('date', { ascending: true });
 
     const sparklineMap = new Map<string, { receita: number; despesa: number }>();
-    sparklineQuery.results.forEach((row: any) => {
-      const existing = sparklineMap.get(row.date) || { receita: 0, despesa: 0 };
-      if (row.type === "receita") {
-        existing.receita = row.total as number;
-      } else {
-        existing.despesa = row.total as number;
-      }
-      sparklineMap.set(row.date, existing);
-    });
+    if (sparklineTx) {
+      sparklineTx.forEach((row: any) => {
+        const existing = sparklineMap.get(row.date) || { receita: 0, despesa: 0 };
+        if (row.type === "receita") {
+          existing.receita += row.amount;
+        } else {
+          existing.despesa += row.amount;
+        }
+        sparklineMap.set(row.date, existing);
+      });
+    }
 
     const receitasSparkline: number[] = [];
     const despesasSparkline: number[] = [];
     const saldoSparkline: number[] = [];
+    const dates: string[] = [];
 
-    Array.from(sparklineMap.values()).forEach((day) => {
-      receitasSparkline.push(day.receita);
-      despesasSparkline.push(day.despesa);
-      saldoSparkline.push(day.receita - day.despesa);
-    });
-
-    // Ensure we have at least 7 data points
-    while (receitasSparkline.length < 7) {
-      receitasSparkline.unshift(0);
-      despesasSparkline.unshift(0);
-      saldoSparkline.unshift(0);
+    // Fill last 7 days including empty ones
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      const data = sparklineMap.get(d) || { receita: 0, despesa: 0 };
+      receitasSparkline.push(data.receita);
+      despesasSparkline.push(data.despesa);
+      saldoSparkline.push(data.receita - data.despesa);
+      dates.push(d);
     }
 
     return c.json({
@@ -158,46 +132,43 @@ app.get("/api/dashboard/stats", async (c) => {
 // GET /api/dashboard/evolution - Get evolution chart data
 app.get("/api/dashboard/evolution", async (c) => {
   try {
-    const db = c.env.DB;
+    const supabase = createSupabaseClient(c.env);
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
 
-    const { results } = await db
-      .prepare(
-        `
-        SELECT 
-          strftime('%d', date) as dia,
-          type,
-          SUM(amount) as total
-        FROM transactions
-        WHERE date >= ?
-        GROUP BY strftime('%d', date), type
-        ORDER BY date ASC
-      `
-      )
-      .bind(startOfMonth.toISOString().split("T")[0])
-      .all();
+    const { data: results, error } = await supabase
+      .from('transactions')
+      .select('date, type, amount')
+      .gte('date', startOfMonth)
+      .order('date', { ascending: true });
+
+    if (error) throw error;
 
     const evolutionMap = new Map<string, { receitas: number; despesas: number }>();
-    
-    results.forEach((row: any) => {
-      const dia = row.dia;
-      const existing = evolutionMap.get(dia) || { receitas: 0, despesas: 0 };
-      
-      if (row.type === "receita") {
-        existing.receitas = row.total as number;
-      } else if (row.type === "despesa") {
-        existing.despesas = row.total as number;
-      }
-      
-      evolutionMap.set(dia, existing);
-    });
 
+    if (results) {
+      results.forEach((row: any) => {
+        const dia = row.date.split('-')[2]; // Get DD part
+        const existing = evolutionMap.get(dia) || { receitas: 0, despesas: 0 };
+
+        if (row.type === "receita") {
+          existing.receitas += row.amount;
+        } else if (row.type === "despesa") {
+          existing.despesas += row.amount;
+        }
+
+        evolutionMap.set(dia, existing);
+      });
+    }
+
+    // Sort by day (map entries are not guaranteed sorted by key if inserted randomly, though here input is sorted)
+    // We should ensure all days are present or just returning present days. 
+    // Usually evolution chart shows existing days.
     const evolution = Array.from(evolutionMap.entries()).map(([dia, values]) => ({
       dia,
       receitas: values.receitas,
       despesas: values.despesas,
-    }));
+    })).sort((a, b) => parseInt(a.dia) - parseInt(b.dia));
 
     return c.json({ evolution });
   } catch (error) {
@@ -209,27 +180,27 @@ app.get("/api/dashboard/evolution", async (c) => {
 // GET /api/dashboard/categories - Get expenses by category
 app.get("/api/dashboard/categories", async (c) => {
   try {
-    const db = c.env.DB;
+    const supabase = createSupabaseClient(c.env);
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
 
-    const { results } = await db
-      .prepare(
-        `
-        SELECT 
-          category,
-          SUM(amount) as total
-        FROM transactions
-        WHERE type = 'despesa' 
-          AND date >= ?
-          AND category IS NOT NULL 
-          AND category != ''
-        GROUP BY category
-        ORDER BY total DESC
-      `
-      )
-      .bind(startOfMonth.toISOString().split("T")[0])
-      .all();
+    const { data: results, error } = await supabase
+      .from('transactions')
+      .select('category, amount')
+      .eq('type', 'despesa')
+      .gte('date', startOfMonth)
+      .not('category', 'is', null)
+      .neq('category', '');
+
+    if (error) throw error;
+
+    const categoryStats: Record<string, number> = {};
+
+    if (results) {
+      results.forEach((row: any) => {
+        categoryStats[row.category] = (categoryStats[row.category] || 0) + row.amount;
+      });
+    }
 
     const categoryColors: Record<string, string> = {
       Alimentação: "#EF4444",
@@ -243,11 +214,11 @@ app.get("/api/dashboard/categories", async (c) => {
       Outros: "#64748B",
     };
 
-    const categories = results.map((row: any) => ({
-      name: row.category,
-      value: row.total as number,
-      color: categoryColors[row.category] || "#64748B",
-    }));
+    const categories = Object.keys(categoryStats).map(name => ({
+      name,
+      value: categoryStats[name],
+      color: categoryColors[name] || "#64748B",
+    })).sort((a, b) => b.value - a.value);
 
     return c.json({ categories });
   } catch (error) {
@@ -259,19 +230,17 @@ app.get("/api/dashboard/categories", async (c) => {
 // GET /api/dashboard/recent - Get recent transactions
 app.get("/api/dashboard/recent", async (c) => {
   try {
-    const db = c.env.DB;
+    const supabase = createSupabaseClient(c.env);
     const limit = parseInt(c.req.query("limit") || "10");
 
-    const { results } = await db
-      .prepare(
-        `
-        SELECT * FROM transactions
-        ORDER BY date DESC, id DESC
-        LIMIT ?
-      `
-      )
-      .bind(limit)
-      .all();
+    const { data: results, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .order('date', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
 
     const transactions = results.map((row: any) => ({
       id: row.id,

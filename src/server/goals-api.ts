@@ -1,20 +1,17 @@
 import { Hono } from "hono";
 import type { Goal } from "@/shared/types";
+import { createSupabaseClient, Env } from "./db";
 
-type Bindings = {
-  DB: D1Database;
-};
+const app = new Hono<{ Bindings: Env }>();
 
-const app = new Hono<{ Bindings: Bindings }>();
-
-// Helper to convert DB row to Goal
+// Helper to convert Supabase row to Goal
 function dbToGoal(row: any): Goal {
   return {
     id: row.id,
     name: row.name,
     type: row.type,
     targetAmount: row.target_amount,
-    currentAmount: row.current_amount,
+    currentAmount: row.current_amount || 0,
     startDate: new Date(row.start_date),
     endDate: new Date(row.end_date),
     category: row.category,
@@ -30,8 +27,9 @@ function dbToGoal(row: any): Goal {
 }
 
 // Calculate current amount based on goal type
+// Note: We aggregate in JS for now as Supabase JS doesn't support complex group/sum queries easily without RPCs
 async function calculateCurrentAmount(
-  db: D1Database,
+  supabase: any,
   goal: Goal
 ): Promise<number> {
   const startDate = new Date(goal.startDate).toISOString().split("T")[0];
@@ -40,72 +38,61 @@ async function calculateCurrentAmount(
   try {
     switch (goal.type) {
       case "economia": {
-        // Sum all income minus expenses in the period
-        const result = await db
-          .prepare(
-            `
-            SELECT 
-              COALESCE(SUM(CASE WHEN type = 'receita' THEN amount ELSE 0 END), 0) -
-              COALESCE(SUM(CASE WHEN type = 'despesa' THEN amount ELSE 0 END), 0) as total
-            FROM transactions
-            WHERE date >= ? AND date <= ?
-          `
-          )
-          .bind(startDate, endDate)
-          .first();
-        return (result?.total as number) || 0;
+        // Fetch all transactions in period
+        const { data: transactions } = await supabase
+          .from('transactions')
+          .select('type, amount')
+          .gte('date', startDate)
+          .lte('date', endDate);
+
+        if (!transactions) return 0;
+
+        const receitas = transactions
+          .filter((t: any) => t.type === 'receita')
+          .reduce((sum: number, t: any) => sum + t.amount, 0);
+
+        const despesas = transactions
+          .filter((t: any) => t.type === 'despesa')
+          .reduce((sum: number, t: any) => sum + t.amount, 0);
+
+        return receitas - despesas;
       }
 
       case "limite_gastos": {
-        // Sum expenses for specific category
-        const result = await db
-          .prepare(
-            `
-            SELECT COALESCE(SUM(amount), 0) as total
-            FROM transactions
-            WHERE type = 'despesa'
-              AND category = ?
-              AND date >= ? 
-              AND date <= ?
-          `
-          )
-          .bind(goal.category, startDate, endDate)
-          .first();
-        return (result?.total as number) || 0;
+        const { data: transactions } = await supabase
+          .from('transactions')
+          .select('amount')
+          .eq('type', 'despesa')
+          .eq('category', goal.category)
+          .gte('date', startDate)
+          .lte('date', endDate);
+
+        if (!transactions) return 0;
+        return transactions.reduce((sum: number, t: any) => sum + t.amount, 0);
       }
 
       case "receita": {
-        // Sum all income in the period
-        const result = await db
-          .prepare(
-            `
-            SELECT COALESCE(SUM(amount), 0) as total
-            FROM transactions
-            WHERE type = 'receita'
-              AND date >= ? 
-              AND date <= ?
-          `
-          )
-          .bind(startDate, endDate)
-          .first();
-        return (result?.total as number) || 0;
+        const { data: transactions } = await supabase
+          .from('transactions')
+          .select('amount')
+          .eq('type', 'receita')
+          .gte('date', startDate)
+          .lte('date', endDate);
+
+        if (!transactions) return 0;
+        return transactions.reduce((sum: number, t: any) => sum + t.amount, 0);
       }
 
       case "investimento": {
-        // Sum transactions in Investment category
-        const result = await db
-          .prepare(
-            `
-            SELECT COALESCE(SUM(amount), 0) as total
-            FROM transactions
-            WHERE category = 'Investimentos'
-              AND date >= ? 
-              AND date <= ?
-          `
-          )
-          .bind(startDate, endDate)
-          .first();
-        return (result?.total as number) || 0;
+        const { data: transactions } = await supabase
+          .from('transactions')
+          .select('amount')
+          .eq('category', 'Investimentos')
+          .gte('date', startDate)
+          .lte('date', endDate);
+
+        if (!transactions) return 0;
+        return transactions.reduce((sum: number, t: any) => sum + t.amount, 0);
       }
 
       default:
@@ -120,16 +107,19 @@ async function calculateCurrentAmount(
 // GET /api/goals - List all goals
 app.get("/api/goals", async (c) => {
   try {
-    const db = c.env.DB;
-    const { results } = await db
-      .prepare("SELECT * FROM goals ORDER BY created_at DESC")
-      .all();
+    const supabase = createSupabaseClient(c.env);
+    const { data, error } = await supabase
+      .from('goals')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
 
     const goals: Goal[] = [];
-    for (const row of results) {
+    for (const row of data) {
       const goal = dbToGoal(row);
       // Calculate current amount
-      goal.currentAmount = await calculateCurrentAmount(db, goal);
+      goal.currentAmount = await calculateCurrentAmount(supabase, goal);
       goals.push(goal);
     }
 
@@ -144,36 +134,31 @@ app.get("/api/goals", async (c) => {
 app.post("/api/goals", async (c) => {
   try {
     const goal: Goal = await c.req.json();
-    const db = c.env.DB;
+    const supabase = createSupabaseClient(c.env);
 
-    const result = await db
-      .prepare(
-        `
-        INSERT INTO goals (
-          name, type, target_amount, current_amount, start_date, end_date,
-          category, recurrence, notify_at_50, notify_at_75, notify_at_90,
-          notify_on_exceed, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `
-      )
-      .bind(
-        goal.name,
-        goal.type,
-        goal.targetAmount,
-        0,
-        new Date(goal.startDate).toISOString().split("T")[0],
-        new Date(goal.endDate).toISOString().split("T")[0],
-        goal.category || null,
-        goal.recurrence,
-        goal.notifyAt50 ? 1 : 0,
-        goal.notifyAt75 ? 1 : 0,
-        goal.notifyAt90 ? 1 : 0,
-        goal.notifyOnExceed ? 1 : 0,
-        "active"
-      )
-      .run();
+    const { data, error } = await supabase
+      .from('goals')
+      .insert({
+        name: goal.name,
+        type: goal.type,
+        target_amount: goal.targetAmount,
+        current_amount: 0,
+        start_date: new Date(goal.startDate).toISOString().split("T")[0],
+        end_date: new Date(goal.endDate).toISOString().split("T")[0],
+        category: goal.category || null,
+        recurrence: goal.recurrence,
+        notify_at_50: goal.notifyAt50,
+        notify_at_75: goal.notifyAt75,
+        notify_at_90: goal.notifyAt90,
+        notify_on_exceed: goal.notifyOnExceed,
+        status: "active"
+      })
+      .select()
+      .single();
 
-    return c.json({ success: true, id: result.meta.last_row_id });
+    if (error) throw error;
+
+    return c.json({ success: true, id: data.id });
   } catch (error) {
     console.error("Error creating goal:", error);
     return c.json({ error: "Failed to create goal" }, 500);
@@ -185,42 +170,27 @@ app.put("/api/goals/:id", async (c) => {
   try {
     const id = c.req.param("id");
     const goal: Goal = await c.req.json();
-    const db = c.env.DB;
+    const supabase = createSupabaseClient(c.env);
 
-    await db
-      .prepare(
-        `
-        UPDATE goals SET
-          name = ?,
-          type = ?,
-          target_amount = ?,
-          start_date = ?,
-          end_date = ?,
-          category = ?,
-          recurrence = ?,
-          notify_at_50 = ?,
-          notify_at_75 = ?,
-          notify_at_90 = ?,
-          notify_on_exceed = ?,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `
-      )
-      .bind(
-        goal.name,
-        goal.type,
-        goal.targetAmount,
-        new Date(goal.startDate).toISOString().split("T")[0],
-        new Date(goal.endDate).toISOString().split("T")[0],
-        goal.category || null,
-        goal.recurrence,
-        goal.notifyAt50 ? 1 : 0,
-        goal.notifyAt75 ? 1 : 0,
-        goal.notifyAt90 ? 1 : 0,
-        goal.notifyOnExceed ? 1 : 0,
-        id
-      )
-      .run();
+    const { error } = await supabase
+      .from('goals')
+      .update({
+        name: goal.name,
+        type: goal.type,
+        target_amount: goal.targetAmount,
+        start_date: new Date(goal.startDate).toISOString().split("T")[0],
+        end_date: new Date(goal.endDate).toISOString().split("T")[0],
+        category: goal.category || null,
+        recurrence: goal.recurrence,
+        notify_at_50: goal.notifyAt50,
+        notify_at_75: goal.notifyAt75,
+        notify_at_90: goal.notifyAt90,
+        notify_on_exceed: goal.notifyOnExceed,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id);
+
+    if (error) throw error;
 
     return c.json({ success: true });
   } catch (error) {
@@ -233,9 +203,14 @@ app.put("/api/goals/:id", async (c) => {
 app.delete("/api/goals/:id", async (c) => {
   try {
     const id = c.req.param("id");
-    const db = c.env.DB;
+    const supabase = createSupabaseClient(c.env);
 
-    await db.prepare("DELETE FROM goals WHERE id = ?").bind(id).run();
+    const { error } = await supabase
+      .from('goals')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
 
     return c.json({ success: true });
   } catch (error) {

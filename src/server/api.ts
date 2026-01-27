@@ -1,13 +1,9 @@
 import { Hono } from "hono";
 import { categorizeTransaction } from "@/services/ai/categorization";
+import { createSupabaseClient, Env } from "./db";
 import type { Transaction } from "@/shared/types";
 
-type Bindings = {
-  OPENAI_API_KEY: string;
-  DB: D1Database;
-};
-
-const app = new Hono<{ Bindings: Bindings }>();
+const app = new Hono<{ Bindings: Env }>();
 
 app.post("/api/categorize", async (c) => {
   try {
@@ -48,10 +44,10 @@ app.post("/api/categorize-batch", async (c) => {
         ...transaction,
         date: transaction.date instanceof Date ? transaction.date : new Date(transaction.date),
       };
-      
+
       const result = await categorizeTransaction(transactionWithDate, apiKey);
       categorized.push(result);
-      
+
       // Small delay between requests
       await new Promise(resolve => setTimeout(resolve, 100));
     }
@@ -66,32 +62,24 @@ app.post("/api/categorize-batch", async (c) => {
 app.post("/api/transactions", async (c) => {
   try {
     const { transactions }: { transactions: Transaction[] } = await c.req.json();
-    const db = c.env.DB;
+    const supabase = createSupabaseClient(c.env);
 
-    for (const transaction of transactions) {
-      await db
-        .prepare(
-          `
-          INSERT INTO transactions (
-            date, description, amount, type, category, subcategory,
-            confidence, needs_review, imported_from, imported_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `
-        )
-        .bind(
-          new Date(transaction.date).toISOString().split("T")[0],
-          transaction.description,
-          transaction.amount,
-          transaction.type,
-          transaction.category,
-          transaction.subcategory,
-          transaction.confidence,
-          transaction.needsReview ? 1 : 0,
-          transaction.importedFrom,
-          new Date(transaction.importedAt).toISOString()
-        )
-        .run();
-    }
+    const { error } = await supabase.from('transactions').insert(
+      transactions.map(t => ({
+        date: new Date(t.date).toISOString().split("T")[0],
+        description: t.description,
+        amount: t.amount,
+        type: t.type,
+        category: t.category,
+        subcategory: t.subcategory,
+        confidence: t.confidence,
+        needs_review: t.needsReview,
+        imported_from: t.importedFrom,
+        imported_at: new Date(t.importedAt).toISOString()
+      }))
+    );
+
+    if (error) throw error;
 
     return c.json({ success: true, count: transactions.length });
   } catch (error) {
@@ -102,78 +90,52 @@ app.post("/api/transactions", async (c) => {
 
 app.get("/api/transactions", async (c) => {
   try {
-    const db = c.env.DB;
+    const supabase = createSupabaseClient(c.env);
     const url = new URL(c.req.url);
-    
+
+    let query = supabase.from('transactions').select('*');
+
     // Query parameters for filtering
     const type = url.searchParams.get("type");
+    if (type) query = query.eq('type', type);
+
     const category = url.searchParams.get("category");
+    if (category) query = query.eq('category', category);
+
     const startDate = url.searchParams.get("startDate");
+    if (startDate) query = query.gte('date', startDate);
+
     const endDate = url.searchParams.get("endDate");
+    if (endDate) query = query.lte('date', endDate);
+
     const minAmount = url.searchParams.get("minAmount");
+    if (minAmount) query = query.gte('amount', minAmount);
+
     const maxAmount = url.searchParams.get("maxAmount");
+    if (maxAmount) query = query.lte('amount', maxAmount);
+
     const search = url.searchParams.get("search");
+    if (search) query = query.ilike('description', `%${search}%`);
+
     const needsReview = url.searchParams.get("needsReview");
+    if (needsReview === "true") query = query.is('needs_review', true);
 
-    let query = "SELECT * FROM transactions WHERE 1=1";
-    const params: any[] = [];
+    const { data: results, error } = await query.order('date', { ascending: false }).order('id', { ascending: false });
 
-    if (type) {
-      query += " AND type = ?";
-      params.push(type);
-    }
-
-    if (category) {
-      query += " AND category = ?";
-      params.push(category);
-    }
-
-    if (startDate) {
-      query += " AND date >= ?";
-      params.push(startDate);
-    }
-
-    if (endDate) {
-      query += " AND date <= ?";
-      params.push(endDate);
-    }
-
-    if (minAmount) {
-      query += " AND amount >= ?";
-      params.push(parseFloat(minAmount));
-    }
-
-    if (maxAmount) {
-      query += " AND amount <= ?";
-      params.push(parseFloat(maxAmount));
-    }
-
-    if (search) {
-      query += " AND description LIKE ?";
-      params.push(`%${search}%`);
-    }
-
-    if (needsReview === "true") {
-      query += " AND needs_review = 1";
-    }
-
-    query += " ORDER BY date DESC, id DESC";
-
-    const stmt = db.prepare(query);
-    const { results } = await stmt.bind(...params).all();
+    if (error) throw error;
 
     const transactions: Transaction[] = results.map((row: any) => ({
-      id: (row.id as number).toString(),
-      date: new Date(row.date as string),
-      description: row.description as string,
-      amount: row.amount as number,
-      type: row.type as "receita" | "despesa",
-      category: (row.category as string) || '',
-      subcategory: (row.subcategory as string) || '',
-      confidence: (row.confidence as number) || 0,
+      id: row.id.toString(),
+      date: new Date(row.date),
+      description: row.description,
+      amount: row.amount,
+      type: row.type,
+      category: row.category || '',
+      subcategory: row.subcategory || '',
+      confidence: row.confidence || 0,
       needsReview: Boolean(row.needs_review),
-      importedFrom: (row.imported_from as string) || '',
-      importedAt: new Date((row.imported_at || row.created_at) as string),
+      importedFrom: row.imported_from || '',
+      importedAt: new Date(row.imported_at || row.created_at),
     }));
 
     return c.json({ transactions });
@@ -186,30 +148,28 @@ app.get("/api/transactions", async (c) => {
 app.get("/api/transactions/:id", async (c) => {
   try {
     const id = c.req.param("id");
-    const db = c.env.DB;
+    const supabase = createSupabaseClient(c.env);
 
-    const { results } = await db
-      .prepare("SELECT * FROM transactions WHERE id = ?")
-      .bind(id)
-      .all();
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-    if (results.length === 0) {
-      return c.json({ error: "Transação não encontrada" }, 404);
-    }
+    if (error) return c.json({ error: "Transação não encontrada" }, 404);
 
-    const row: any = results[0];
     const transaction: Transaction = {
-      id: (row.id as number).toString(),
-      date: new Date(row.date as string),
-      description: row.description as string,
-      amount: row.amount as number,
-      type: row.type as "receita" | "despesa",
-      category: (row.category as string) || '',
-      subcategory: (row.subcategory as string) || '',
-      confidence: (row.confidence as number) || 0,
-      needsReview: Boolean(row.needs_review),
-      importedFrom: (row.imported_from as string) || '',
-      importedAt: new Date((row.imported_at || row.created_at) as string),
+      id: data.id.toString(),
+      date: new Date(data.date),
+      description: data.description,
+      amount: data.amount,
+      type: data.type,
+      category: data.category || '',
+      subcategory: data.subcategory || '',
+      confidence: data.confidence || 0,
+      needsReview: Boolean(data.needs_review),
+      importedFrom: data.imported_from || '',
+      importedAt: new Date(data.imported_at || data.created_at),
     };
 
     return c.json({ transaction });
@@ -223,44 +183,26 @@ app.patch("/api/transactions/:id", async (c) => {
   try {
     const id = c.req.param("id");
     const updates: Partial<Transaction> = await c.req.json();
-    const db = c.env.DB;
+    const supabase = createSupabaseClient(c.env);
 
-    const fields: string[] = [];
-    const params: any[] = [];
+    const dbUpdates: any = {};
+    if (updates.description !== undefined) dbUpdates.description = updates.description;
+    if (updates.amount !== undefined) dbUpdates.amount = updates.amount;
+    if (updates.type !== undefined) dbUpdates.type = updates.type;
+    if (updates.category !== undefined) dbUpdates.category = updates.category;
+    if (updates.subcategory !== undefined) dbUpdates.subcategory = updates.subcategory;
+    if (updates.date !== undefined) dbUpdates.date = new Date(updates.date).toISOString().split("T")[0];
 
-    if (updates.description !== undefined) {
-      fields.push("description = ?");
-      params.push(updates.description);
-    }
-    if (updates.amount !== undefined) {
-      fields.push("amount = ?");
-      params.push(updates.amount);
-    }
-    if (updates.type !== undefined) {
-      fields.push("type = ?");
-      params.push(updates.type);
-    }
-    if (updates.category !== undefined) {
-      fields.push("category = ?");
-      params.push(updates.category);
-    }
-    if (updates.subcategory !== undefined) {
-      fields.push("subcategory = ?");
-      params.push(updates.subcategory);
-    }
-    if (updates.date !== undefined) {
-      fields.push("date = ?");
-      params.push(new Date(updates.date).toISOString().split("T")[0]);
-    }
-
-    if (fields.length === 0) {
+    if (Object.keys(dbUpdates).length === 0) {
       return c.json({ error: "Nenhum campo para atualizar" }, 400);
     }
 
-    params.push(id);
-    const query = `UPDATE transactions SET ${fields.join(", ")} WHERE id = ?`;
+    const { error } = await supabase
+      .from('transactions')
+      .update(dbUpdates)
+      .eq('id', id);
 
-    await db.prepare(query).bind(...params).run();
+    if (error) throw error;
 
     return c.json({ success: true });
   } catch (error) {
@@ -272,9 +214,14 @@ app.patch("/api/transactions/:id", async (c) => {
 app.delete("/api/transactions/:id", async (c) => {
   try {
     const id = c.req.param("id");
-    const db = c.env.DB;
+    const supabase = createSupabaseClient(c.env);
 
-    await db.prepare("DELETE FROM transactions WHERE id = ?").bind(id).run();
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
 
     return c.json({ success: true });
   } catch (error) {
@@ -285,19 +232,41 @@ app.delete("/api/transactions/:id", async (c) => {
 
 app.get("/api/transactions/stats/categories", async (c) => {
   try {
-    const db = c.env.DB;
+    const supabase = createSupabaseClient(c.env);
 
-    const { results } = await db
-      .prepare(
-        `
-        SELECT category, COUNT(*) as count, SUM(amount) as total
-        FROM transactions
-        WHERE category IS NOT NULL AND category != ''
-        GROUP BY category
-        ORDER BY total DESC
-      `
-      )
-      .all();
+    // Note: Supabase JS doesn't support complex aggregations directly easily, 
+    // we might need an RPC function or fetch and aggregate.
+    // For now, let's fetch all and aggregate in memory (not ideal for large datasets) in MVP
+    // OR allow SQL via RPC. But we are avoiding raw SQL.
+    // Let's use a simpler query: fetch transactions with categories
+
+    // Better approach for MVP without creating RPC: Select categories and map them.
+    // But since we need counts and sums, raw SQL or RPC is best.
+    // Given user constraints, let's execute SQL via Supabase RPC if we create one, 
+    // OR just fetch data and aggregate in Worker (acceptable for MVP/small data).
+
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('category, amount')
+      .not('category', 'is', null)
+      .neq('category', '');
+
+    if (error) throw error;
+
+    const stats = data.reduce((acc: any, curr: any) => {
+      if (!acc[curr.category]) {
+        acc[curr.category] = { count: 0, total: 0 };
+      }
+      acc[curr.category].count++;
+      acc[curr.category].total += curr.amount;
+      return acc;
+    }, {});
+
+    const results = Object.keys(stats).map(category => ({
+      category,
+      count: stats[category].count,
+      total: stats[category].total
+    })).sort((a, b) => b.total - a.total);
 
     return c.json({ categories: results });
   } catch (error) {

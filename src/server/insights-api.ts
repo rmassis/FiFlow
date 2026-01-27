@@ -1,13 +1,9 @@
 import { Hono } from "hono";
 import { generateInsights, analyzeTransactionsForContext } from "@/services/ai/insights";
+import { createSupabaseClient, Env } from "./db";
 import type { Insight, Transaction, Goal } from "@/shared/types";
 
-type Bindings = {
-  DB: D1Database;
-  OPENAI_API_KEY: string;
-};
-
-const app = new Hono<{ Bindings: Bindings }>();
+const app = new Hono<{ Bindings: Env }>();
 
 // Helper to convert DB row to Insight
 function dbToInsight(row: any): Insight {
@@ -30,10 +26,14 @@ function dbToInsight(row: any): Insight {
 // GET /api/insights - List all insights
 app.get("/api/insights", async (c) => {
   try {
-    const db = c.env.DB;
-    const { results } = await db
-      .prepare("SELECT * FROM insights ORDER BY created_at DESC")
-      .all();
+    const supabase = createSupabaseClient(c.env);
+
+    const { data: results, error } = await supabase
+      .from('insights')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
 
     const insights = results.map(dbToInsight);
     return c.json({ insights });
@@ -46,7 +46,7 @@ app.get("/api/insights", async (c) => {
 // POST /api/insights/generate - Generate new insights
 app.post("/api/insights/generate", async (c) => {
   try {
-    const db = c.env.DB;
+    const supabase = createSupabaseClient(c.env);
     const apiKey = c.env.OPENAI_API_KEY;
 
     if (!apiKey) {
@@ -54,9 +54,12 @@ app.post("/api/insights/generate", async (c) => {
     }
 
     // Fetch all transactions
-    const { results: transactionRows } = await db
-      .prepare("SELECT * FROM transactions ORDER BY date DESC")
-      .all();
+    const { data: transactionRows, error: txError } = await supabase
+      .from('transactions')
+      .select('*')
+      .order('date', { ascending: false });
+
+    if (txError) throw txError;
 
     const transactions: Transaction[] = transactionRows.map((row: any) => ({
       id: row.id.toString(),
@@ -73,16 +76,19 @@ app.post("/api/insights/generate", async (c) => {
     }));
 
     // Fetch active goals
-    const { results: goalRows } = await db
-      .prepare("SELECT * FROM goals WHERE status = 'active'")
-      .all();
+    const { data: goalRows, error: goalsError } = await supabase
+      .from('goals')
+      .select('*')
+      .eq('status', 'active');
+
+    if (goalsError) throw goalsError;
 
     const goals: Goal[] = goalRows.map((row: any) => ({
       id: row.id,
       name: row.name,
       type: row.type,
       targetAmount: row.target_amount,
-      currentAmount: row.current_amount,
+      currentAmount: row.current_amount || 0,
       startDate: new Date(row.start_date),
       endDate: new Date(row.end_date),
       category: row.category,
@@ -103,27 +109,24 @@ app.post("/api/insights/generate", async (c) => {
     const insights = await generateInsights(context, apiKey);
 
     // Save insights to database
-    for (const insight of insights) {
-      await db
-        .prepare(
-          `
-          INSERT INTO insights (
-            tipo, título, descrição, impacto, ação_sugerida, 
-            economia_potencial, period_start, period_end
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `
-        )
-        .bind(
-          insight.tipo,
-          insight.título,
-          insight.descrição,
-          insight.impacto,
-          insight.ação_sugerida,
-          insight.economia_potencial || null,
-          new Date(insight.period_start).toISOString().split("T")[0],
-          new Date(insight.period_end).toISOString().split("T")[0]
-        )
-        .run();
+    // Batch insert is more efficient
+    if (insights.length > 0) {
+      const { error: insertError } = await supabase
+        .from('insights')
+        .insert(
+          insights.map(insight => ({
+            tipo: insight.tipo,
+            título: insight.título,
+            descrição: insight.descrição,
+            impacto: insight.impacto,
+            ação_sugerida: insight.ação_sugerida,
+            economia_potencial: insight.economia_potencial || null,
+            period_start: new Date(insight.period_start).toISOString().split("T")[0],
+            period_end: new Date(insight.period_end).toISOString().split("T")[0]
+          }))
+        );
+
+      if (insertError) throw insertError;
     }
 
     return c.json({ success: true, insights });
@@ -137,12 +140,14 @@ app.post("/api/insights/generate", async (c) => {
 app.patch("/api/insights/:id/read", async (c) => {
   try {
     const id = c.req.param("id");
-    const db = c.env.DB;
+    const supabase = createSupabaseClient(c.env);
 
-    await db
-      .prepare("UPDATE insights SET is_read = 1 WHERE id = ?")
-      .bind(id)
-      .run();
+    const { error } = await supabase
+      .from('insights')
+      .update({ is_read: true })
+      .eq('id', id);
+
+    if (error) throw error;
 
     return c.json({ success: true });
   } catch (error) {
@@ -155,12 +160,14 @@ app.patch("/api/insights/:id/read", async (c) => {
 app.patch("/api/insights/:id/apply", async (c) => {
   try {
     const id = c.req.param("id");
-    const db = c.env.DB;
+    const supabase = createSupabaseClient(c.env);
 
-    await db
-      .prepare("UPDATE insights SET is_applied = 1 WHERE id = ?")
-      .bind(id)
-      .run();
+    const { error } = await supabase
+      .from('insights')
+      .update({ is_applied: true })
+      .eq('id', id);
+
+    if (error) throw error;
 
     return c.json({ success: true });
   } catch (error) {
@@ -173,9 +180,14 @@ app.patch("/api/insights/:id/apply", async (c) => {
 app.delete("/api/insights/:id", async (c) => {
   try {
     const id = c.req.param("id");
-    const db = c.env.DB;
+    const supabase = createSupabaseClient(c.env);
 
-    await db.prepare("DELETE FROM insights WHERE id = ?").bind(id).run();
+    const { error } = await supabase
+      .from('insights')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
 
     return c.json({ success: true });
   } catch (error) {
