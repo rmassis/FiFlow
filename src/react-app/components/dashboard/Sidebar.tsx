@@ -1,4 +1,5 @@
-LayoutDashboard,
+import {
+  LayoutDashboard,
   ArrowLeftRight,
   Tags,
   Upload,
