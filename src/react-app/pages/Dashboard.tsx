@@ -4,22 +4,25 @@ import { SummaryCards } from "@/react-app/components/dashboard/SummaryCards";
 import { EvolutionChart } from "@/react-app/components/dashboard/EvolutionChart";
 import { ExpensesPieChart } from "@/react-app/components/dashboard/ExpensesPieChart";
 import { TransactionsTable } from "@/react-app/components/dashboard/TransactionsTable";
+import { DashboardProvider } from "@/react-app/contexts/DashboardContext";
 
 export default function Dashboard() {
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <DashboardHeader />
-        
-        <SummaryCards />
+    <DashboardProvider>
+      <DashboardLayout>
+        <div className="space-y-6">
+          <DashboardHeader />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <EvolutionChart />
-          <ExpensesPieChart />
+          <SummaryCards />
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <EvolutionChart />
+            <ExpensesPieChart />
+          </div>
+
+          <TransactionsTable />
         </div>
-
-        <TransactionsTable />
-      </div>
-    </DashboardLayout>
+      </DashboardLayout>
+    </DashboardProvider>
   );
 }
