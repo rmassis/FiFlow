@@ -202,18 +202,72 @@ export const useFinanceStore = create<FinanceStore>()(
             },
 
             updateUser: async (updates) => {
-                // Optimistic
+                // Check for real auth user
+                const { data: { user: authUser } } = await supabase.auth.getUser();
+
                 const currentUser = get().user;
-                if (!currentUser) return;
-                const newUser = { ...currentUser, ...updates };
+                // If we have an auth user, use their ID. Otherwise use the ID provided or current ID.
+                const realId = authUser ? authUser.id : (currentUser?.id || updates.id);
+
+                if (!currentUser && !updates) return;
+
+                const newUser = {
+                    ...(currentUser || {} as User),
+                    ...updates,
+                    id: realId, // Enforce ID
+                    updatedAt: new Date()
+                } as User;
+
                 set({ user: newUser });
 
-                // DB
-                try {
-                    await supabase.from('profiles').upsert(mapProfileToDB(newUser));
-                } catch (err) {
-                    console.error("DB Sync Error", err);
+                // DB - Only try to save if we have a real authUser (to avoid FK error)
+                if (authUser) {
+                    try {
+                        const mapped = mapProfileToDB(newUser);
+                        // Ensure ID is set in mapped object
+                        mapped.id = authUser.id;
+                        await supabase.from('profiles').upsert(mapped);
+                    } catch (err) {
+                        console.error("DB Sync Error", err);
+                    }
+                } else {
+                    console.warn("User updated locally but NOT saved to DB (Not Authenticated)");
                 }
+            },
+
+            ensureUser: async (email: string) => {
+                // 1. Check if already logged in
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) return user.id;
+
+                // 2. Try to Sign Up / Sign In
+                const DEFAULT_PASSWORD = "fiflow-mvp-password";
+
+                // Try Sign Up
+                let { data, error } = await supabase.auth.signUp({
+                    email,
+                    password: DEFAULT_PASSWORD,
+                });
+
+                if (error?.message?.includes("already registered") || error?.status === 422) {
+                    console.log("User exists, trying sign in...");
+                    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+                        email,
+                        password: DEFAULT_PASSWORD,
+                    });
+                    if (signInError) {
+                        console.error("Auto-login failed:", signInError);
+                        return null;
+                    }
+                    return signInData.user?.id || null;
+                }
+
+                if (error) {
+                    console.error("Auto-signup failed:", error);
+                    return null;
+                }
+
+                return data.user?.id || null;
             },
 
             updatePersonalInfo: async (info) => {

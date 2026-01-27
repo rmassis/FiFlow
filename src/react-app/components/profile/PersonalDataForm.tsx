@@ -14,7 +14,8 @@ export function PersonalDataForm() {
         updateUser,
         updatePersonalInfo,
         updateContactInfo,
-        updateAddress
+        updateAddress,
+        ensureUser
     } = useFinanceStore();
 
     const [isLoading, setIsLoading] = useState(false);
@@ -119,10 +120,29 @@ export function PersonalDataForm() {
         setIsLoading(true);
 
         try {
+            // Ensure Authentication
+            const { contactInfo } = formData; // Use form data as source of truth for email
+            const emailToUse = contactInfo.email || user?.contactInfo?.email;
+
+            if (emailToUse) {
+                const authId = await ensureUser(emailToUse);
+                if (!authId) {
+                    alert("Não foi possível autenticar o usuário. Verifique o email ou se já possui conta com outra senha.");
+                    // Proceed locally anyway? No, warn.
+                } else {
+                    // Update current user locally with the real ID if it changed
+                    if (user && user.id !== authId) {
+                        // We might need to migrate local data or just reload?
+                        // For MVP, just updating the ID in the store is tricky if referencing elsewhere.
+                        // But updateUser handles it.
+                    }
+                }
+            }
+
             // If user doesn't exist yet, create basic structure
             if (!user) {
                 updateUser({
-                    id: crypto.randomUUID(),
+                    // Remove randomUUID, updateUser will handle getting ID from auth
                     createdAt: new Date(),
                     updatedAt: new Date(),
                     personalInfo: formData.personalInfo,
