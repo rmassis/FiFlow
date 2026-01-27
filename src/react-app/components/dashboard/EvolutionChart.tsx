@@ -30,17 +30,25 @@ const CustomTooltip = ({ active, payload }: any) => {
   return null;
 };
 
+import { useDashboard } from "@/react-app/contexts/DashboardContext";
+
 export function EvolutionChart() {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { dateRange } = useDashboard();
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [dateRange]);
 
   const loadData = async () => {
+    setLoading(true);
     try {
-      const response = await fetch("/api/dashboard/evolution");
+      const queryParams = new URLSearchParams({
+        startDate: dateRange.start.toISOString(),
+        endDate: dateRange.end.toISOString(),
+      });
+      const response = await fetch(`/api/dashboard/evolution?${queryParams}`);
       const result = await response.json();
       setData(result.evolution || []);
     } catch (error) {
@@ -82,34 +90,34 @@ export function EvolutionChart() {
         <h3 className="text-lg font-bold text-gray-900">Evolução Temporal</h3>
         <p className="text-sm text-slate-600">Receitas vs Despesas do período</p>
       </div>
-      
+
       <ResponsiveContainer width="100%" height={300}>
         <ComposedChart data={data}>
           <defs>
             <linearGradient id="colorReceitas" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#10B981" stopOpacity={0.3}/>
-              <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
+              <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
             </linearGradient>
             <linearGradient id="colorDespesas" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#EF4444" stopOpacity={0.3}/>
-              <stop offset="95%" stopColor="#EF4444" stopOpacity={0}/>
+              <stop offset="5%" stopColor="#EF4444" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="#EF4444" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-          <XAxis 
-            dataKey="dia" 
+          <XAxis
+            dataKey="dia"
             stroke="#64748B"
             style={{ fontSize: 12 }}
             tickLine={false}
           />
-          <YAxis 
+          <YAxis
             stroke="#64748B"
             style={{ fontSize: 12 }}
             tickLine={false}
             tickFormatter={(value) => `R$ ${value}`}
           />
           <Tooltip content={<CustomTooltip />} />
-          <Legend 
+          <Legend
             wrapperStyle={{ paddingTop: 20 }}
             iconType="circle"
           />

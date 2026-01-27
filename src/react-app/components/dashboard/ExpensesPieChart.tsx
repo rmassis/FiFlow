@@ -12,7 +12,7 @@ const CustomTooltip = ({ active, payload, data }: any) => {
   if (active && payload && payload.length) {
     const total = data.reduce((sum: number, item: any) => sum + item.value, 0);
     const percentage = ((payload[0].value / total) * 100).toFixed(1);
-    
+
     return (
       <div className="bg-white p-3 rounded-lg shadow-xl border border-gray-200">
         <p className="text-sm font-semibold text-gray-900">{payload[0].name}</p>
@@ -26,18 +26,18 @@ const CustomTooltip = ({ active, payload, data }: any) => {
 
 const CustomLegend = ({ payload, data }: any) => {
   const total = data.reduce((sum: number, item: any) => sum + item.value, 0);
-  
+
   return (
     <div className="grid grid-cols-2 gap-2 mt-4">
       {payload.map((entry: any, index: number) => {
         const percentage = ((entry.payload.value / total) * 100).toFixed(1);
         return (
-          <div 
-            key={`legend-${index}`} 
+          <div
+            key={`legend-${index}`}
             className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
           >
-            <div 
-              className="w-3 h-3 rounded-full flex-shrink-0" 
+            <div
+              className="w-3 h-3 rounded-full flex-shrink-0"
               style={{ backgroundColor: entry.color }}
             />
             <div className="flex-1 min-w-0">
@@ -51,18 +51,26 @@ const CustomLegend = ({ payload, data }: any) => {
   );
 };
 
+import { useDashboard } from "@/react-app/contexts/DashboardContext";
+
 export function ExpensesPieChart() {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined);
+  const { dateRange } = useDashboard();
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [dateRange]);
 
   const loadData = async () => {
+    setLoading(true);
     try {
-      const response = await fetch("/api/dashboard/categories");
+      const queryParams = new URLSearchParams({
+        startDate: dateRange.start.toISOString(),
+        endDate: dateRange.end.toISOString(),
+      });
+      const response = await fetch(`/api/dashboard/categories?${queryParams}`);
       const result = await response.json();
       setData(result.categories || []);
     } catch (error) {
@@ -112,7 +120,7 @@ export function ExpensesPieChart() {
         <h3 className="text-lg font-bold text-gray-900">Despesas por Categoria</h3>
         <p className="text-sm text-slate-600">Distribuição dos gastos do período</p>
       </div>
-      
+
       <ResponsiveContainer width="100%" height={300}>
         <PieChart>
           <Pie
@@ -127,11 +135,11 @@ export function ExpensesPieChart() {
             onMouseLeave={onPieLeave}
           >
             {data.map((entry, index) => (
-              <Cell 
-                key={`cell-${index}`} 
+              <Cell
+                key={`cell-${index}`}
                 fill={entry.color}
                 opacity={activeIndex === undefined || activeIndex === index ? 1 : 0.5}
-                style={{ 
+                style={{
                   filter: activeIndex === index ? "brightness(1.1)" : "none",
                   transition: "all 0.3s ease"
                 }}
