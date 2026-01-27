@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { 
-  CheckCircle2, 
-  AlertCircle, 
-  XCircle, 
+import {
+  CheckCircle2,
+  AlertCircle,
+  XCircle,
   Filter,
   Trash2,
   Loader2
@@ -38,30 +38,57 @@ export function PreviewStep({ transactions, onConfirm, onBack }: PreviewStepProp
     setIsCategorizing(true);
     setCategorizationProgress({ current: 0, total: transactions.length });
 
+    // Identify transactions that need categorization (empty or default category)
+    const uncategorizedTransactions = transactions.filter(t => !t.category || t.category === '');
+    const alreadyCategorized = transactions.filter(t => t.category && t.category !== '');
+
+    // If nothing to categorize, just return
+    if (uncategorizedTransactions.length === 0) {
+      setIsCategorizing(false);
+      return;
+    }
+
+    const BATCH_SIZE = 10;
+    const total = uncategorizedTransactions.length;
+    let processedCount = 0;
+    let finalTransactions = [...alreadyCategorized];
+
     try {
-      const response = await fetch('/api/categorize-batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transactions }),
-      });
+      // Split into chunks
+      for (let i = 0; i < total; i += BATCH_SIZE) {
+        const chunk = uncategorizedTransactions.slice(i, i + BATCH_SIZE);
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
-        throw new Error(errorData.error || 'Erro ao categorizar transações');
+        const response = await fetch('/api/categorize-batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transactions: chunk }),
+        });
+
+        if (!response.ok) {
+          console.warn(`Failed to categorize chunk ${i / BATCH_SIZE + 1}`);
+          // If fail, keep original chunk (uncategorized)
+          finalTransactions = [...finalTransactions, ...chunk];
+        } else {
+          const data = await response.json();
+          if (data.transactions && Array.isArray(data.transactions)) {
+            finalTransactions = [...finalTransactions, ...data.transactions];
+          } else {
+            finalTransactions = [...finalTransactions, ...chunk];
+          }
+        }
+
+        processedCount += chunk.length;
+        setCategorizationProgress({ current: processedCount, total: total });
       }
 
-      const data = await response.json();
-      
-      // Check if we got valid categorized transactions
-      if (data.transactions && Array.isArray(data.transactions)) {
-        setFilteredTransactions(data.transactions);
-      } else {
-        throw new Error('Resposta inválida do servidor');
-      }
+      // Sort by date to maintain order (optional but good UI)
+      finalTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      setFilteredTransactions(finalTransactions);
+
     } catch (error) {
       console.error('Error categorizing:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Erro ao categorizar transações';
-      alert(errorMessage);
+      alert('Erro ao processar categorização. Algumas transações podem não ter sido categorizadas.');
     } finally {
       setIsCategorizing(false);
     }
@@ -198,10 +225,10 @@ export function PreviewStep({ transactions, onConfirm, onBack }: PreviewStepProp
             </p>
           </div>
           <div className="w-full bg-indigo-200 rounded-full h-2">
-            <div 
+            <div
               className="bg-gradient-to-r from-indigo-500 to-purple-600 h-2 rounded-full transition-all duration-300"
-              style={{ 
-                width: `${categorizationProgress.total > 0 ? (categorizationProgress.current / categorizationProgress.total) * 100 : 0}%` 
+              style={{
+                width: `${categorizationProgress.total > 0 ? (categorizationProgress.current / categorizationProgress.total) * 100 : 0}%`
               }}
             />
           </div>
