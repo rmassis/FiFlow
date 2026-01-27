@@ -9,10 +9,15 @@ import { parseExcel } from "@/services/parsers/excel-parser";
 // import { parsePDF } from "@/services/parsers/pdf-parser";
 import type { CSVConfig, Transaction } from "@/shared/types";
 
-type ImportStep = 'upload' | 'configure' | 'preview' | 'complete';
+import { useFinanceStore } from "@/react-app/contexts/FinanceContext";
+import { Wallet, CreditCard as CreditCardIcon } from "lucide-react";
+
+type ImportStep = 'select-account' | 'upload' | 'configure' | 'preview' | 'complete';
 
 export default function Import() {
-  const [currentStep, setCurrentStep] = useState<ImportStep>('upload');
+  const { bankAccounts, creditCards } = useFinanceStore();
+  const [currentStep, setCurrentStep] = useState<ImportStep>('select-account');
+  const [targetAccount, setTargetAccount] = useState<{ id: string; type: 'bank' | 'card' } | null>(null);
 
   // Queue for files requiring manual configuration (CSV, Excel)
   const [configQueue, setConfigQueue] = useState<File[]>([]);
@@ -43,14 +48,26 @@ export default function Import() {
     for (const file of autoFiles) {
       const ext = file.name.split('.').pop()?.toLowerCase();
       try {
+        let result: { transactions: Transaction[] } = { transactions: [] };
+
         if (ext === 'ofx') {
-          const result = await parseOFX(file);
-          autoTransactions.push(...result.transactions);
+          result = await parseOFX(file);
         } else if (ext === 'pdf') {
           const { parsePDF } = await import("@/services/parsers/pdf-parser");
-          const result = await parsePDF(file);
-          autoTransactions.push(...result.transactions);
+          result = await parsePDF(file);
         }
+
+        // Link transactions to account
+        if (targetAccount) {
+          result.transactions = result.transactions.map(t => ({
+            ...t,
+            bankAccountId: targetAccount.type === 'bank' ? targetAccount.id : undefined,
+            creditCardId: targetAccount.type === 'card' ? targetAccount.id : undefined,
+          }));
+        }
+
+        autoTransactions.push(...result.transactions);
+
       } catch (error) {
         console.error(`Error parsing file ${file.name}:`, error);
         alert(`Erro ao processar arquivo ${file.name}`);
@@ -79,6 +96,15 @@ export default function Import() {
         result = await parseExcel(currentConfigFile, config);
       } else {
         result = await parseCSV(currentConfigFile, config);
+      }
+
+      // Link transactions to account
+      if (targetAccount) {
+        result.transactions = result.transactions.map(t => ({
+          ...t,
+          bankAccountId: targetAccount.type === 'bank' ? targetAccount.id : undefined,
+          creditCardId: targetAccount.type === 'card' ? targetAccount.id : undefined,
+        }));
       }
 
       setTransactions(prev => [...prev, ...result.transactions]);
@@ -118,7 +144,8 @@ export default function Import() {
   };
 
   const handleReset = () => {
-    setCurrentStep('upload');
+    setCurrentStep('select-account');
+    setTargetAccount(null);
     setConfigQueue([]);
     setTransactions([]);
   };
@@ -142,6 +169,7 @@ export default function Import() {
         <div className="mb-8">
           <div className="flex items-center justify-between">
             {[
+              { id: 'select-account', label: 'Conta' },
               { id: 'upload', label: 'Upload' },
               { id: 'configure', label: 'Configurar' },
               { id: 'preview', label: 'Revisar' },
@@ -179,6 +207,66 @@ export default function Import() {
         </div>
 
         {/* Content */}
+        {currentStep === 'select-account' && (
+          <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 max-w-2xl mx-auto">
+            <h2 className="text-xl font-bold text-gray-900 mb-6">Selecione a Conta de Destino</h2>
+
+            <div className="space-y-6">
+              {/* Bank Accounts */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 mb-3 uppercase tracking-wider">Contas Bancárias</h3>
+                {bankAccounts.length === 0 && <p className="text-sm text-gray-400 italic">Nenhuma conta cadastrada.</p>}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {bankAccounts.map(account => (
+                    <button
+                      key={account.id}
+                      onClick={() => {
+                        setTargetAccount({ id: account.id, type: 'bank' });
+                        setCurrentStep('upload');
+                      }}
+                      className="flex items-center gap-3 p-4 border rounded-xl hover:border-indigo-500 hover:bg-indigo-50 transition-all text-left group"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 group-hover:bg-indigo-100 group-hover:text-indigo-600">
+                        <Wallet className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">{account.name}</div>
+                        <div className="text-xs text-gray-500">{account.bank}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Credit Cards */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-500 mb-3 uppercase tracking-wider">Cartões de Crédito</h3>
+                {creditCards.length === 0 && <p className="text-sm text-gray-400 italic">Nenhum cartão cadastrado.</p>}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {creditCards.map(card => (
+                    <button
+                      key={card.id}
+                      onClick={() => {
+                        setTargetAccount({ id: card.id, type: 'card' });
+                        setCurrentStep('upload');
+                      }}
+                      className="flex items-center gap-3 p-4 border rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all text-left group"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 group-hover:bg-purple-200">
+                        <CreditCardIcon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">{card.name}</div>
+                        <div className="text-xs text-gray-500">final {card.lastFourDigits}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {currentStep === 'upload' && (
           <FileUploadZone onFileUpload={handleFileUpload} />
         )}

@@ -10,6 +10,10 @@ export interface Transaction {
   needsReview: boolean;
   importedFrom: string;
   importedAt: Date;
+  // Account Linking
+  bankAccountId?: string;
+  creditCardId?: string;
+  category_id?: string; // For syncing with DB
 }
 
 export interface ImportResult {
