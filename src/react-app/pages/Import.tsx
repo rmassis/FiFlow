@@ -167,7 +167,7 @@ export default function Import() {
 
         {/* Progress Steps */}
         <div className="mb-8">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center w-full">
             {[
               { id: 'select-account', label: 'Conta' },
               { id: 'upload', label: 'Upload' },
@@ -175,8 +175,9 @@ export default function Import() {
               { id: 'preview', label: 'Revisar' },
               { id: 'complete', label: 'Concluir' },
             ].map((step, index, arr) => (
-              <div key={step.id} className="flex items-center flex-1">
-                <div className="flex flex-col items-center flex-1">
+              <div key={step.id} className={`flex items-center ${index === arr.length - 1 ? 'flex-none' : 'flex-1'}`}>
+                {/* Step Circle & Label */}
+                <div className="flex flex-col items-center relative z-10">
                   <div
                     className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${currentStep === step.id
                       ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
@@ -187,10 +188,12 @@ export default function Import() {
                   >
                     {index + 1}
                   </div>
-                  <span className="text-sm font-medium text-gray-700 mt-2">
+                  <span className="text-sm font-medium text-gray-700 mt-2 absolute top-12 whitespace-nowrap">
                     {step.label}
                   </span>
                 </div>
+
+                {/* Connector Line */}
                 {index < arr.length - 1 && (
                   <div className="flex-1 h-1 mx-4 bg-gray-200 relative">
                     <div
