@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Save, Trash2, AlertCircle, Calendar } from "lucide-react";
 import type { Transaction } from "@/shared/types";
 
@@ -9,34 +9,9 @@ interface TransactionDetailModalProps {
   onDelete: (id: string) => void;
 }
 
-const CATEGORIAS_PRINCIPAIS = [
-  'Alimentação',
-  'Transporte',
-  'Moradia',
-  'Saúde',
-  'Educação',
-  'Lazer',
-  'Vestuário',
-  'Investimentos',
-  'Renda',
-  'Outros',
-];
-
-const SUBCATEGORIAS: Record<string, string[]> = {
-  'Alimentação': ['Supermercado', 'Restaurante', 'Fast Food', 'Delivery', 'Padaria'],
-  'Transporte': ['Combustível', 'Uber/Taxi', 'Ônibus', 'Estacionamento', 'Manutenção'],
-  'Moradia': ['Aluguel', 'Condomínio', 'Energia', 'Água', 'Internet', 'Gás'],
-  'Saúde': ['Farmácia', 'Consulta', 'Plano de Saúde', 'Exames', 'Academia'],
-  'Educação': ['Mensalidade', 'Livros', 'Cursos', 'Material'],
-  'Lazer': ['Cinema', 'Streaming', 'Viagem', 'Eventos', 'Hobbies'],
-  'Vestuário': ['Roupas', 'Calçados', 'Acessórios'],
-  'Investimentos': ['Ações', 'Fundos', 'Tesouro', 'Cripto'],
-  'Renda': ['Salário', 'Freelance', 'Investimentos', 'Outros'],
-  'Outros': ['Não classificado'],
-};
-
 export function TransactionDetailModal({ transaction, onClose, onUpdate, onDelete }: TransactionDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false);
+  const [categories, setCategories] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     description: transaction.description,
     amount: transaction.amount,
@@ -45,6 +20,15 @@ export function TransactionDetailModal({ transaction, onClose, onUpdate, onDelet
     subcategory: transaction.subcategory,
     date: new Date(transaction.date).toISOString().split('T')[0],
   });
+
+  useEffect(() => {
+    fetch("/api/categories")
+      .then(res => res.json())
+      .then(data => setCategories(data || []));
+  }, []);
+
+  const CATEGORIAS_PAIS = categories.filter(c => !c.parent_id);
+  const AVAILABLE_SUB = categories.filter(c => c.parent_id === categories.find(p => p.name === formData.category)?.id);
 
   const formatBRL = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -68,8 +52,6 @@ export function TransactionDetailModal({ transaction, onClose, onUpdate, onDelet
     }
   };
 
-  const availableSubcategories = SUBCATEGORIAS[formData.category] || [];
-
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -88,7 +70,6 @@ export function TransactionDetailModal({ transaction, onClose, onUpdate, onDelet
 
         {/* Content */}
         <div className="p-6">
-          {/* Alert for needs review */}
           {transaction.needsReview && (
             <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
@@ -104,11 +85,8 @@ export function TransactionDetailModal({ transaction, onClose, onUpdate, onDelet
 
           {isEditing ? (
             <div className="space-y-4">
-              {/* Description */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Descrição
-                </label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Descrição</label>
                 <input
                   type="text"
                   value={formData.description}
@@ -117,7 +95,6 @@ export function TransactionDetailModal({ transaction, onClose, onUpdate, onDelet
                 />
               </div>
 
-              {/* Date */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
                   <Calendar className="w-4 h-4 inline mr-1" />
@@ -131,11 +108,8 @@ export function TransactionDetailModal({ transaction, onClose, onUpdate, onDelet
                 />
               </div>
 
-              {/* Type */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Tipo
-                </label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Tipo</label>
                 <select
                   value={formData.type}
                   onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
@@ -146,11 +120,8 @@ export function TransactionDetailModal({ transaction, onClose, onUpdate, onDelet
                 </select>
               </div>
 
-              {/* Amount */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Valor (R$)
-                </label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Valor (R$)</label>
                 <input
                   type="number"
                   step="0.01"
@@ -160,45 +131,41 @@ export function TransactionDetailModal({ transaction, onClose, onUpdate, onDelet
                 />
               </div>
 
-              {/* Category */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Categoria
-                </label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Categoria Principal</label>
                 <select
                   value={formData.category}
-                  onChange={(e) => setFormData({ 
-                    ...formData, 
+                  onChange={(e) => setFormData({
+                    ...formData,
                     category: e.target.value,
-                    subcategory: SUBCATEGORIAS[e.target.value]?.[0] || ''
+                    subcategory: '' // Reset sub on main change
                   })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 >
-                  {CATEGORIAS_PRINCIPAIS.map((cat) => (
-                    <option key={cat} value={cat}>{cat}</option>
+                  <option value="">Selecione...</option>
+                  {CATEGORIAS_PAIS.map((cat: any) => (
+                    <option key={cat.id} value={cat.name}>{cat.name}</option>
                   ))}
+                  <option value="Outros">Outros</option>
                 </select>
               </div>
 
-              {/* Subcategory */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Subcategoria
-                </label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Subcategoria</label>
                 <select
                   value={formData.subcategory}
                   onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 >
-                  {availableSubcategories.map((sub) => (
-                    <option key={sub} value={sub}>{sub}</option>
+                  <option value="">Nenhuma</option>
+                  {AVAILABLE_SUB.map((sub: any) => (
+                    <option key={sub.id} value={sub.name}>{sub.name}</option>
                   ))}
                 </select>
               </div>
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Display Mode */}
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <p className="text-sm font-semibold text-gray-700 mb-1">Descrição</p>
@@ -208,27 +175,20 @@ export function TransactionDetailModal({ transaction, onClose, onUpdate, onDelet
                   <p className="text-sm font-semibold text-gray-700 mb-1">Data</p>
                   <p className="text-base text-gray-900">
                     {new Date(transaction.date).toLocaleDateString('pt-BR', {
-                      day: '2-digit',
-                      month: 'long',
-                      year: 'numeric'
+                      day: '2-digit', month: 'long', year: 'numeric'
                     })}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-gray-700 mb-1">Tipo</p>
-                  <span className={`inline-flex px-3 py-1 rounded-full text-sm font-semibold ${
-                    transaction.type === 'receita'
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-red-100 text-red-700'
-                  }`}>
+                  <span className={`inline-flex px-3 py-1 rounded-full text-sm font-semibold ${transaction.type === 'receita' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                    }`}>
                     {transaction.type === 'receita' ? 'Receita' : 'Despesa'}
                   </span>
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-gray-700 mb-1">Valor</p>
-                  <p className={`text-2xl font-bold ${
-                    transaction.type === 'receita' ? 'text-emerald-600' : 'text-red-600'
-                  }`}>
+                  <p className={`text-2xl font-bold ${transaction.type === 'receita' ? 'text-emerald-600' : 'text-red-600'}`}>
                     {formatBRL(transaction.amount)}
                   </p>
                 </div>
@@ -238,50 +198,22 @@ export function TransactionDetailModal({ transaction, onClose, onUpdate, onDelet
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-gray-700 mb-1">Subcategoria</p>
-                  <p className="text-base text-gray-900">{transaction.subcategory}</p>
-                </div>
-              </div>
-
-              {/* Metadata */}
-              <div className="pt-6 border-t border-gray-200">
-                <p className="text-sm font-semibold text-gray-700 mb-3">Informações de Importação</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Importado de</p>
-                    <p className="text-sm text-gray-900">{transaction.importedFrom || 'Manual'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Data de importação</p>
-                    <p className="text-sm text-gray-900">
-                      {new Date(transaction.importedAt).toLocaleDateString('pt-BR')}
-                    </p>
-                  </div>
-                  {transaction.confidence > 0 && (
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">Confiança da categorização</p>
-                      <p className="text-sm text-gray-900">{Math.round(transaction.confidence * 100)}%</p>
-                    </div>
-                  )}
+                  <p className="text-base text-gray-900">{transaction.subcategory || '---'}</p>
                 </div>
               </div>
             </div>
           )}
         </div>
 
-        {/* Actions */}
         <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex items-center justify-between">
           <button
             onClick={handleDelete}
             className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-all font-semibold flex items-center gap-2"
           >
-            <Trash2 className="w-4 h-4" />
-            Excluir
+            <Trash2 className="w-4 h-4" /> Excluir
           </button>
           <div className="flex items-center gap-3">
-            <button
-              onClick={onClose}
-              className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all font-semibold"
-            >
+            <button onClick={onClose} className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all font-semibold">
               Cancelar
             </button>
             {isEditing ? (
@@ -289,8 +221,7 @@ export function TransactionDetailModal({ transaction, onClose, onUpdate, onDelet
                 onClick={handleSave}
                 className="px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all font-semibold flex items-center gap-2"
               >
-                <Save className="w-4 h-4" />
-                Salvar
+                <Save className="w-4 h-4" /> Salvar
               </button>
             ) : (
               <button

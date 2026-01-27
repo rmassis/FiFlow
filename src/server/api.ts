@@ -353,4 +353,102 @@ app.get("/api/transactions/stats/categories", async (c) => {
   }
 });
 
+// Categories API
+
+app.get("/api/categories", async (c) => {
+  try {
+    const supabase = createSupabaseClient(c.env);
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .order('name');
+
+    if (error) throw error;
+    return c.json(data);
+  } catch (error) {
+    console.error("Error fetching categories:", error);
+    return c.json({ error: "Erro ao buscar categorias" }, 500);
+  }
+});
+
+app.post("/api/categories", async (c) => {
+  try {
+    const category = await c.req.json();
+    const supabase = createSupabaseClient(c.env);
+
+    const { data, error } = await supabase
+      .from('categories')
+      .insert(category)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return c.json(data);
+  } catch (error) {
+    console.error("Error creating category:", error);
+    return c.json({ error: "Erro ao criar categoria" }, 500);
+  }
+});
+
+app.patch("/api/categories/:id", async (c) => {
+  try {
+    const id = c.req.param("id");
+    const updates = await c.req.json();
+    const supabase = createSupabaseClient(c.env);
+
+    const { data, error } = await supabase
+      .from('categories')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return c.json(data);
+  } catch (error) {
+    console.error("Error updating category:", error);
+    return c.json({ error: "Erro ao atualizar categoria" }, 500);
+  }
+});
+
+app.delete("/api/categories/:id", async (c) => {
+  try {
+    const id = c.req.param("id");
+    const supabase = createSupabaseClient(c.env);
+
+    const { error } = await supabase
+      .from('categories')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting category:", error);
+    return c.json({ error: "Erro ao deletar categoria" }, 500);
+  }
+});
+
+app.post("/api/categories/reclassify", async (c) => {
+  try {
+    const { oldCategory, newCategory, type } = await c.req.json();
+    const supabase = createSupabaseClient(c.env);
+
+    // This is a bulk update on Transactions TEXT field
+    const { data, error } = await supabase
+      .from('transactions')
+      .update({ category: newCategory })
+      .eq('category', oldCategory)
+      .eq('type', type) // Safety check
+      .select();
+
+    if (error) throw error;
+
+    return c.json({ success: true, count: data.length });
+  } catch (error) {
+    console.error("Error reclassifying transactions:", error);
+    return c.json({ error: "Erro ao reclassificar transações" }, 500);
+  }
+});
+
 export default app;

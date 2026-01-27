@@ -1,6 +1,6 @@
-import {
-  LayoutDashboard,
+LayoutDashboard,
   ArrowLeftRight,
+  Tags,
   Upload,
   Target,
   TrendingUp,
@@ -12,6 +12,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 const navigation = [
   { name: "Dashboard", icon: LayoutDashboard, href: "/" },
   { name: "Transactions", icon: ArrowLeftRight, href: "/transactions" },
+  { name: "Categorias", icon: Tags, href: "/categories" },
   { name: "Import", icon: Upload, href: "/import" },
   { name: "Goals", icon: Target, href: "/goals" },
   { name: "Insights", icon: TrendingUp, href: "/insights" },

@@ -16,6 +16,17 @@ export interface Transaction {
   category_id?: string; // For syncing with DB
 }
 
+export interface Category {
+  id: string;
+  user_id: string;
+  name: string;
+  type: 'receita' | 'despesa';
+  parent_id?: string | null;
+  color?: string;
+  icon?: string;
+  created_at?: Date;
+}
+
 export interface ImportResult {
   success: boolean;
   transactions: Transaction[];

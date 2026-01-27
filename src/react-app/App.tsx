@@ -4,6 +4,7 @@ import Import from "@/react-app/pages/Import";
 import { Goals } from "@/react-app/pages/Goals";
 import { Insights } from "@/react-app/pages/Insights";
 import { Transactions } from "@/react-app/pages/Transactions";
+import Categories from "@/react-app/pages/Categories";
 import Agent from "@/react-app/pages/Agent";
 import Profile from "@/react-app/pages/Profile";
 
@@ -22,6 +23,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/transactions" element={<Transactions />} />
+        <Route path="/categories" element={<Categories />} />
         <Route path="/import" element={<Import />} />
         <Route path="/goals" element={<Goals />} />
         <Route path="/insights" element={<Insights />} />
