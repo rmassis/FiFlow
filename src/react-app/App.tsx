@@ -7,7 +7,16 @@ import { Transactions } from "@/react-app/pages/Transactions";
 import Agent from "@/react-app/pages/Agent";
 import Profile from "@/react-app/pages/Profile";
 
+import { useEffect } from "react";
+import { useFinanceStore } from "@/react-app/contexts/FinanceContext";
+
 export default function App() {
+  const fetchInitialData = useFinanceStore(state => state.fetchInitialData);
+
+  useEffect(() => {
+    fetchInitialData();
+  }, [fetchInitialData]);
+
   return (
     <Router>
       <Routes>

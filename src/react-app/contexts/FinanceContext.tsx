@@ -1,52 +1,159 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { supabase } from '@/lib/supabase';
 import type {
     User, PersonalInfo, ContactInfo, Address, UserSettings,
     BankAccount, CreditCard, Invoice,
     Goal, Insight, Transaction
 } from '@/shared/types';
 
+// Mavel Mappers
+const mapProfileFromDB = (data: any): User => ({
+    id: data.id,
+    createdAt: new Date(data.created_at),
+    updatedAt: new Date(data.updated_at),
+    personalInfo: {
+        fullName: data.full_name || '',
+        cpf: data.cpf,
+        birthDate: data.birth_date ? new Date(data.birth_date) : undefined
+    },
+    contactInfo: {
+        email: '', // Email comes from auth, generally not in profile unless duplicated
+        emailVerified: false,
+        phone: data.phone || '',
+        phoneVerified: false
+    },
+    address: {
+        zipCode: data.address_zip || '',
+        street: data.address_street || '',
+        number: data.address_number || '',
+        complement: data.address_complement,
+        neighborhood: data.address_neighborhood || '',
+        city: data.address_city || '',
+        state: data.address_state || '',
+        country: data.address_country || 'Brasil'
+    },
+    settings: data.settings || {}
+});
+
+const mapProfileToDB = (user: User) => ({
+    id: user.id,
+    full_name: user.personalInfo.fullName,
+    cpf: user.personalInfo.cpf,
+    phone: user.contactInfo.phone,
+    birth_date: user.personalInfo.birthDate,
+    address_zip: user.address.zipCode,
+    address_street: user.address.street,
+    address_number: user.address.number,
+    address_complement: user.address.complement,
+    address_neighborhood: user.address.neighborhood,
+    address_city: user.address.city,
+    address_state: user.address.state,
+    address_country: user.address.country,
+    settings: user.settings,
+    updated_at: new Date()
+});
+
+const mapBankAccountFromDB = (data: any): BankAccount => ({
+    id: data.id,
+    userId: data.user_id,
+    name: data.name,
+    type: data.type,
+    bank: data.bank,
+    balance: parseFloat(data.balance),
+    agency: data.agency,
+    number: data.number,
+    currency: data.currency,
+    color: data.color,
+    icon: data.icon,
+    isPrimary: data.is_primary,
+    createdAt: new Date(data.created_at),
+    updatedAt: new Date(data.updated_at)
+});
+
+const mapBankAccountToDB = (acc: BankAccount) => ({
+    user_id: acc.userId,
+    name: acc.name,
+    type: acc.type,
+    bank: acc.bank,
+    balance: acc.balance,
+    agency: acc.agency,
+    number: acc.number,
+    currency: acc.currency,
+    color: acc.color,
+    icon: acc.icon,
+    is_primary: acc.isPrimary,
+    updated_at: new Date()
+});
+
+const mapCreditCardFromDB = (data: any): CreditCard => ({
+    id: data.id,
+    userId: data.user_id,
+    name: data.name,
+    network: data.network,
+    lastFourDigits: data.last_four_digits,
+    limit: parseFloat(data.credit_limit),
+    usedLimit: parseFloat(data.used_limit),
+    closingDay: data.closing_day,
+    dueDay: data.due_day,
+    color: data.color,
+    icon: data.icon,
+    isPrimary: data.is_primary,
+    createdAt: new Date(data.created_at),
+    updatedAt: new Date(data.updated_at)
+});
+
+const mapCreditCardToDB = (card: CreditCard) => ({
+    user_id: card.userId,
+    name: card.name,
+    network: card.network,
+    last_four_digits: card.lastFourDigits,
+    credit_limit: card.limit,
+    used_limit: card.usedLimit,
+    closing_day: card.closingDay,
+    due_day: card.dueDay,
+    color: card.color,
+    icon: card.icon,
+    is_primary: card.isPrimary,
+    updated_at: new Date()
+});
+
+
 interface FinanceStore {
-    // Existing States
+    isLoading: boolean;
     transactions: Transaction[];
     goals: Goal[];
     insights: Insight[];
     chatHistory: any[];
 
-    // User Profile
+    // User
     user: User | null;
-    updateUser: (updates: Partial<User>) => void;
-    updatePersonalInfo: (info: Partial<PersonalInfo>) => void;
-    updateContactInfo: (info: Partial<ContactInfo>) => void;
-    updateAddress: (address: Partial<Address>) => void;
-    updateSettings: (settings: Partial<UserSettings>) => void;
+    fetchInitialData: () => Promise<void>;
+    updateUser: (updates: Partial<User>) => Promise<void>;
+    updatePersonalInfo: (info: Partial<PersonalInfo>) => Promise<void>;
+    updateContactInfo: (info: Partial<ContactInfo>) => Promise<void>;
+    updateAddress: (address: Partial<Address>) => Promise<void>;
 
-    // Bank Accounts
+    // Accounts
     bankAccounts: BankAccount[];
-    addBankAccount: (account: BankAccount) => void;
-    updateBankAccount: (id: string, updates: Partial<BankAccount>) => void;
-    deleteBankAccount: (id: string) => void;
-    setPrimaryBankAccount: (id: string) => void;
+    addBankAccount: (account: BankAccount) => Promise<void>;
+    updateBankAccount: (id: string, updates: Partial<BankAccount>) => Promise<void>;
+    deleteBankAccount: (id: string) => Promise<void>;
 
-    // Credit Cards
+    // Cards
     creditCards: CreditCard[];
-    addCreditCard: (card: CreditCard) => void;
-    updateCreditCard: (id: string, updates: Partial<CreditCard>) => void;
-    deleteCreditCard: (id: string) => void;
-    setPrimaryCreditCard: (id: string) => void;
+    addCreditCard: (card: CreditCard) => Promise<void>;
+    updateCreditCard: (id: string, updates: Partial<CreditCard>) => Promise<void>;
+    deleteCreditCard: (id: string) => Promise<void>;
 
-    // Invoices
     invoices: Invoice[];
-    addInvoice: (invoice: Invoice) => void;
-    updateInvoice: (id: string, updates: Partial<Invoice>) => void;
-    payInvoice: (id: string, amount: number) => void;
 }
 
 export const useFinanceStore = create<FinanceStore>()(
     persist(
         (set, get) => ({
-            // Initial States
+            isLoading: false,
             transactions: [],
             goals: [],
             insights: [],
@@ -56,160 +163,194 @@ export const useFinanceStore = create<FinanceStore>()(
             creditCards: [],
             invoices: [],
 
-            // User Actions
-            updateUser: (updates) =>
-                set((state) => ({
-                    user: state.user ? { ...state.user, ...updates, updatedAt: new Date() } : null,
-                })),
+            fetchInitialData: async () => {
+                set({ isLoading: true });
+                try {
+                    const { data: { user: authUser } } = await supabase.auth.getUser();
+                    if (!authUser) return;
 
-            updatePersonalInfo: (info) =>
-                set((state) => ({
-                    user: state.user
-                        ? {
-                            ...state.user,
-                            personalInfo: { ...state.user.personalInfo, ...info },
-                            updatedAt: new Date(),
-                        }
-                        : null,
-                })),
+                    // Fetch Profile
+                    const { data: profile } = await supabase
+                        .from('profiles')
+                        .select('*')
+                        .eq('id', authUser.id)
+                        .single();
 
-            updateContactInfo: (info) =>
-                set((state) => ({
-                    user: state.user
-                        ? {
-                            ...state.user,
-                            contactInfo: { ...state.user.contactInfo, ...info },
-                            updatedAt: new Date(),
-                        }
-                        : null,
-                })),
+                    if (profile) {
+                        const mappedUser = mapProfileFromDB(profile);
+                        mappedUser.contactInfo.email = authUser.email || '';
+                        set({ user: mappedUser });
+                    }
 
-            updateAddress: (address) =>
-                set((state) => ({
-                    user: state.user
-                        ? {
-                            ...state.user,
-                            address: { ...state.user.address, ...address },
-                            updatedAt: new Date(),
-                        }
-                        : null,
-                })),
+                    // Fetch Bank Accounts
+                    const { data: accounts } = await supabase.from('bank_accounts').select('*');
+                    if (accounts) {
+                        set({ bankAccounts: accounts.map(mapBankAccountFromDB) });
+                    }
 
-            updateSettings: (settings) =>
-                set((state) => ({
-                    user: state.user
-                        ? {
-                            ...state.user,
-                            settings: { ...state.user.settings, ...settings },
-                            updatedAt: new Date(),
-                        }
-                        : null,
-                })),
+                    // Fetch Credit Cards
+                    const { data: cards } = await supabase.from('credit_cards').select('*');
+                    if (cards) {
+                        set({ creditCards: cards.map(mapCreditCardFromDB) });
+                    }
 
-            // Bank Account Actions
-            addBankAccount: (account) =>
-                set((state) => ({
-                    bankAccounts: [...state.bankAccounts, account],
-                })),
+                } catch (error) {
+                    console.error("Error fetching data:", error);
+                } finally {
+                    set({ isLoading: false });
+                }
+            },
 
-            updateBankAccount: (id, updates) =>
+            updateUser: async (updates) => {
+                // Optimistic
+                const currentUser = get().user;
+                if (!currentUser) return;
+                const newUser = { ...currentUser, ...updates };
+                set({ user: newUser });
+
+                // DB
+                try {
+                    await supabase.from('profiles').upsert(mapProfileToDB(newUser));
+                } catch (err) {
+                    console.error("DB Sync Error", err);
+                }
+            },
+
+            updatePersonalInfo: async (info) => {
+                const currentUser = get().user;
+                if (!currentUser) return;
+                const newUser = { ...currentUser, personalInfo: { ...currentUser.personalInfo, ...info } };
+                set({ user: newUser });
+
+                try {
+                    await supabase.from('profiles').upsert(mapProfileToDB(newUser));
+                } catch (err) {
+                    console.error("DB Sync Error", err);
+                }
+            },
+
+            updateContactInfo: async (info) => {
+                const currentUser = get().user;
+                if (!currentUser) return;
+                const newUser = { ...currentUser, contactInfo: { ...currentUser.contactInfo, ...info } };
+                set({ user: newUser });
+                try {
+                    await supabase.from('profiles').upsert(mapProfileToDB(newUser));
+                } catch (err) {
+                    console.error("DB Sync Error", err);
+                }
+            },
+
+            updateAddress: async (addr) => {
+                const currentUser = get().user;
+                if (!currentUser) return;
+                const newUser = { ...currentUser, address: { ...currentUser.address, ...addr } };
+                set({ user: newUser });
+                try {
+                    await supabase.from('profiles').upsert(mapProfileToDB(newUser));
+                } catch (err) {
+                    console.error("DB Sync Error", err);
+                }
+            },
+
+            addBankAccount: async (account) => {
+                // To DB first to get ID if needed, or assume UUID generated by client
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) return;
+
+                const accountWithUserId = { ...account, userId: user.id };
+
+                // Optimistic
+                set((state) => ({ bankAccounts: [...state.bankAccounts, accountWithUserId] }));
+
+                try {
+                    await supabase.from('bank_accounts').insert(mapBankAccountToDB(accountWithUserId));
+                } catch (err) {
+                    console.error("DB Insert Error", err);
+                }
+            },
+
+            updateBankAccount: async (id, updates) => {
                 set((state) => ({
                     bankAccounts: state.bankAccounts.map((acc) =>
-                        acc.id === id ? { ...acc, ...updates, updatedAt: new Date() } : acc
+                        acc.id === id ? { ...acc, ...updates } : acc
                     ),
-                })),
+                }));
 
-            deleteBankAccount: (id) =>
+                // We need the full object to map to DB or just the fields?
+                // `mapBankAccountToDB` expects full object. merging...
+                const updatedAccount = get().bankAccounts.find(a => a.id === id);
+                if (updatedAccount) {
+                    try {
+                        await supabase.from('bank_accounts').update(mapBankAccountToDB(updatedAccount)).eq('id', id);
+                    } catch (err) {
+                        console.error("DB Update Error", err);
+                    }
+                }
+            },
+
+            deleteBankAccount: async (id) => {
                 set((state) => ({
                     bankAccounts: state.bankAccounts.filter((acc) => acc.id !== id),
-                })),
+                }));
+                try {
+                    await supabase.from('bank_accounts').delete().eq('id', id);
+                } catch (err) {
+                    console.error("DB Delete Error", err);
+                }
+            },
 
-            setPrimaryBankAccount: (id) =>
-                set((state) => ({
-                    bankAccounts: state.bankAccounts.map((acc) => ({
-                        ...acc,
-                        isPrimary: acc.id === id,
-                    })),
-                })),
+            addCreditCard: async (card) => {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) return;
+                const cardWithUserId = { ...card, userId: user.id };
 
-            // Credit Card Actions
-            addCreditCard: (card) =>
-                set((state) => ({
-                    creditCards: [...state.creditCards, card],
-                })),
+                set((state) => ({ creditCards: [...state.creditCards, cardWithUserId] }));
 
-            updateCreditCard: (id, updates) =>
+                try {
+                    await supabase.from('credit_cards').insert(mapCreditCardToDB(cardWithUserId));
+                } catch (err) {
+                    console.error("DB Insert Error", err);
+                }
+            },
+
+            updateCreditCard: async (id, updates) => {
                 set((state) => ({
-                    creditCards: state.creditCards.map((card) =>
-                        card.id === id ? { ...card, ...updates, updatedAt: new Date() } : card
+                    creditCards: state.creditCards.map((c) =>
+                        c.id === id ? { ...c, ...updates } : c
                     ),
-                })),
+                }));
+                const updatedCard = get().creditCards.find(c => c.id === id);
+                if (updatedCard) {
+                    try {
+                        await supabase.from('credit_cards').update(mapCreditCardToDB(updatedCard)).eq('id', id);
+                    } catch (err) {
+                        console.error("DB Update Error", err);
+                    }
+                }
+            },
 
-            deleteCreditCard: (id) =>
+            deleteCreditCard: async (id) => {
                 set((state) => ({
-                    creditCards: state.creditCards.filter((card) => card.id !== id),
-                })),
-
-            setPrimaryCreditCard: (id) =>
-                set((state) => ({
-                    creditCards: state.creditCards.map((card) => ({
-                        ...card,
-                        isPrimary: card.id === id,
-                    })),
-                })),
-
-            // Invoice Actions
-            addInvoice: (invoice) =>
-                set((state) => ({
-                    invoices: [...state.invoices, invoice],
-                })),
-
-            updateInvoice: (id, updates) =>
-                set((state) => ({
-                    invoices: state.invoices.map((inv) =>
-                        inv.id === id ? { ...inv, ...updates } : inv
-                    ),
-                })),
-
-            payInvoice: (id, amount) =>
-                set((state) => ({
-                    invoices: state.invoices.map((inv) => {
-                        if (inv.id !== id) return inv;
-
-                        const newPaidAmount = inv.paidAmount + amount;
-                        const newRemainingAmount = inv.totalAmount - newPaidAmount;
-
-                        return {
-                            ...inv,
-                            paidAmount: newPaidAmount,
-                            remainingAmount: newRemainingAmount,
-                            status: newRemainingAmount <= 0 ? 'paga' : 'paga_parcial',
-                        };
-                    }),
-                })),
+                    creditCards: state.creditCards.filter((c) => c.id !== id),
+                }));
+                try {
+                    await supabase.from('credit_cards').delete().eq('id', id);
+                } catch (err) {
+                    console.error("DB Delete Error", err);
+                }
+            },
         }),
         {
             name: 'finance-hub-storage',
             partialize: (state) => ({
                 transactions: state.transactions,
-                goals: state.goals,
-                insights: state.insights,
-                chatHistory: state.chatHistory,
+                // Do not persist user/accounts/cards locally if we want strictly DB?
+                // Or keep them for caching. I'll keep them.
                 user: state.user,
                 bankAccounts: state.bankAccounts,
                 creditCards: state.creditCards,
-                invoices: state.invoices,
             }),
         }
     )
 );
-
-// Selector Hooks para Performance
-export const useUser = () => useFinanceStore((state) => state.user);
-export const useBankAccounts = () => useFinanceStore((state) => state.bankAccounts);
-export const useCreditCards = () => useFinanceStore((state) => state.creditCards);
-export const useInvoices = () => useFinanceStore((state) => state.invoices);
-export const usePrimaryBankAccount = () =>
-    useFinanceStore((state) => state.bankAccounts.find((acc) => acc.isPrimary));
-export const usePrimaryCreditCard = () =>
-    useFinanceStore((state) => state.creditCards.find((card) => card.isPrimary));
