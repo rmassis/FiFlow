@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
+import { useDashboard } from "@/react-app/contexts/DashboardContext";
 
 const formatBRL = (value: number) => {
   return new Intl.NumberFormat("pt-BR", {
@@ -51,7 +52,6 @@ const CustomLegend = ({ payload, data }: any) => {
   );
 };
 
-import { useDashboard } from "@/react-app/contexts/DashboardContext";
 
 export function ExpensesPieChart() {
   const [data, setData] = useState<any[]>([]);
