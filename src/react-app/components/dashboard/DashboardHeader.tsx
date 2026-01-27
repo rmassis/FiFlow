@@ -1,34 +1,33 @@
-import { Calendar, Plus, Upload, User } from "lucide-react";
+import { User } from "lucide-react";
+import { useFinanceStore } from "@/react-app/contexts/FinanceContext";
+import { AdvancedDateFilter } from "./AdvancedDateFilter";
 
 export function DashboardHeader() {
+  const { userProfile } = useFinanceStore();
+  const userName = userProfile?.full_name?.split(' ')[0] || "Usuário";
+
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
+
+        {/* User Greeting */}
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md ring-4 ring-indigo-50">
             <User className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Olá, Usuário</h1>
-            <p className="text-sm text-slate-600">Bem-vindo ao seu painel financeiro</p>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+              Olá, {userName}
+            </h1>
+            <p className="text-sm text-slate-500 font-medium">
+              Bem-vindo ao seu painel financeiro
+            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg transition-colors border border-gray-200">
-            <Calendar className="w-4 h-4" />
-            <span className="text-sm font-medium">Últimos 30 dias</span>
-          </button>
-          
-          <button className="flex items-center gap-2 px-4 py-2.5 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors shadow-md">
-            <Upload className="w-4 h-4" />
-            <span className="text-sm font-medium">Importar</span>
-          </button>
-          
-          <button className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-lg transition-all shadow-lg shadow-indigo-500/30">
-            <Plus className="w-4 h-4" />
-            <span className="text-sm font-medium">Nova Transação</span>
-          </button>
+        {/* Date Filter */}
+        <div className="flex items-center">
+          <AdvancedDateFilter />
         </div>
       </div>
     </div>
