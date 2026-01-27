@@ -20,7 +20,20 @@ app.post("/api/categorize", async (c) => {
       date: transaction.date instanceof Date ? transaction.date : new Date(transaction.date),
     };
 
-    const categorized = await categorizeTransaction(transactionWithDate, apiKey);
+    let categorized = await categorizeTransaction(transactionWithDate, apiKey);
+
+    // Heuristic Override for Investment Profit vs Principal
+    const desc = categorized.description.toLowerCase();
+    if (/(rendimento|juros|dividendo|proventos|lucro)/i.test(desc)) {
+      categorized.category = 'Rendimento'; // This will be INCLUDED in Dashboard
+    } else if (/(resgate|aplicação|aplicacao|investimento|CDB|LCI|LCA|Tesouro)/i.test(desc)) {
+      // Only override if not already explicitly identified as something else specific
+      // But user wants strict control: Principal = Investimento (Excluded)
+      if (categorized.category !== 'Rendimento') {
+        categorized.category = 'Investimento'; // This will be EXCLUDED in Dashboard
+      }
+    }
+
     return c.json(categorized);
   } catch (error) {
     console.error("Error in /api/categorize:", error);
@@ -45,7 +58,18 @@ app.post("/api/categorize-batch", async (c) => {
         date: transaction.date instanceof Date ? transaction.date : new Date(transaction.date),
       };
 
-      const result = await categorizeTransaction(transactionWithDate, apiKey);
+      let result = await categorizeTransaction(transactionWithDate, apiKey);
+
+      // Heuristic Override for Investment Profit vs Principal
+      const desc = result.description.toLowerCase();
+      if (/(rendimento|juros|dividendo|proventos|lucro)/i.test(desc)) {
+        result.category = 'Rendimento'; // This will be INCLUDED in Dashboard
+      } else if (/(resgate|aplicação|aplicacao|investimento|CDB|LCI|LCA|Tesouro)/i.test(desc)) {
+        if (result.category !== 'Rendimento') {
+          result.category = 'Investimento'; // This will be EXCLUDED in Dashboard
+        }
+      }
+
       categorized.push(result);
 
       // Small delay between requests
