@@ -67,11 +67,13 @@ export default function Categories() {
         try {
             const response = await fetch("/api/categories");
             const data = await response.json();
-            setCategories(data || []);
+            const cats = Array.isArray(data) ? data : [];
+            setCategories(cats);
             // Auto expand root items
-            setExpanded(new Set(data.filter((c: any) => !c.parent_id).map((c: any) => c.id)));
+            setExpanded(new Set(cats.filter((c: any) => !c.parent_id).map((c: any) => c.id)));
         } catch (error) {
             console.error("Error loading categories:", error);
+            setCategories([]);
         } finally {
             setLoading(false);
         }
@@ -81,9 +83,11 @@ export default function Categories() {
         try {
             const response = await fetch("/api/transactions/stats/categories");
             const data = await response.json();
-            setDistinctOldCategories(data.categories.map((c: any) => c.category));
+            const cats = Array.isArray(data?.categories) ? data.categories : [];
+            setDistinctOldCategories(cats.map((c: any) => c.category));
         } catch (error) {
             console.error("Error loading transaction categories:", error);
+            setDistinctOldCategories([]);
         }
     };
 
@@ -180,12 +184,13 @@ export default function Categories() {
     const categoryTree = useMemo(() => {
         const map: Record<string, any> = {};
         const roots: any[] = [];
+        const cats = Array.isArray(categories) ? categories : [];
 
-        categories.forEach(cat => {
+        cats.forEach(cat => {
             map[cat.id] = { ...cat, children: [] };
         });
 
-        categories.forEach(cat => {
+        cats.forEach(cat => {
             if (cat.parent_id && map[cat.parent_id]) {
                 map[cat.parent_id].children.push(map[cat.id]);
             } else {

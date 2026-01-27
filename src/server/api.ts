@@ -363,10 +363,13 @@ app.get("/api/categories", async (c) => {
       .select('*')
       .order('name');
 
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase Error fetching categories:", error);
+      throw error;
+    }
     return c.json(data);
   } catch (error) {
-    console.error("Error fetching categories:", error);
+    console.error("Detailed catch error in /api/categories:", error);
     return c.json({ error: "Erro ao buscar categorias" }, 500);
   }
 });
