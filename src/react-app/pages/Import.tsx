@@ -13,47 +13,89 @@ type ImportStep = 'upload' | 'configure' | 'preview' | 'complete';
 
 export default function Import() {
   const [currentStep, setCurrentStep] = useState<ImportStep>('upload');
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+
+  // Queue for files requiring manual configuration (CSV, Excel)
+  const [configQueue, setConfigQueue] = useState<File[]>([]);
+
+  // Accumulated transactions from all files
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-  const handleFileUpload = async (file: File) => {
-    setUploadedFile(file);
+  // Current file being configured (first in queue)
+  const currentConfigFile = configQueue[0];
 
-    const extension = file.name.split('.').pop()?.toLowerCase();
+  const handleFileUpload = async (files: File[]) => {
+    const autoFiles: File[] = [];
+    const manualFiles: File[] = [];
 
-    // For non-CSV files, parse immediately and go to preview
-    if (extension === 'ofx') {
-      const result = await parseOFX(file);
-      setTransactions(result.transactions);
-      setCurrentStep('preview');
-    } else if (extension === 'pdf') {
-      const { parsePDF } = await import("@/services/parsers/pdf-parser");
-      const result = await parsePDF(file);
-      setTransactions(result.transactions);
-      setCurrentStep('preview');
-    } else if (extension === 'xlsx' || extension === 'xls') {
-      // For Excel, we need configuration
-      setCurrentStep('configure');
-    } else {
-      // CSV needs configuration
-      setCurrentStep('configure');
+    // Sort files
+    files.forEach(file => {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      if (ext === 'ofx' || ext === 'pdf') {
+        autoFiles.push(file);
+      } else {
+        manualFiles.push(file);
+      }
+    });
+
+    // Process auto-parsable files immediately
+    const autoTransactions: Transaction[] = [];
+
+    for (const file of autoFiles) {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      try {
+        if (ext === 'ofx') {
+          const result = await parseOFX(file);
+          autoTransactions.push(...result.transactions);
+        } else if (ext === 'pdf') {
+          const { parsePDF } = await import("@/services/parsers/pdf-parser");
+          const result = await parsePDF(file);
+          autoTransactions.push(...result.transactions);
+        }
+      } catch (error) {
+        console.error(`Error parsing file ${file.name}:`, error);
+        alert(`Erro ao processar arquivo ${file.name}`);
+      }
     }
+
+    setTransactions(prev => [...prev, ...autoTransactions]);
+
+    if (manualFiles.length > 0) {
+      setConfigQueue(manualFiles);
+      setCurrentStep('configure');
+    } else if (autoFiles.length > 0) {
+      setCurrentStep('preview');
+    }
+    // If no files valid, stay on upload (or show error in Dropzone)
   };
 
   const handleCSVConfigured = async (config: CSVConfig) => {
-    if (!uploadedFile) return;
+    if (!currentConfigFile) return;
 
-    const extension = uploadedFile.name.split('.').pop()?.toLowerCase();
+    const extension = currentConfigFile.name.split('.').pop()?.toLowerCase();
     let result;
 
-    if (extension === 'xlsx' || extension === 'xls') {
-      result = await parseExcel(uploadedFile, config);
-    } else {
-      result = await parseCSV(uploadedFile, config);
-    }
+    try {
+      if (extension === 'xlsx' || extension === 'xls') {
+        result = await parseExcel(currentConfigFile, config);
+      } else {
+        result = await parseCSV(currentConfigFile, config);
+      }
 
-    setTransactions(result.transactions);
-    setCurrentStep('preview');
+      setTransactions(prev => [...prev, ...result.transactions]);
+
+      // Remove current file from queue
+      const nextQueue = configQueue.slice(1);
+      setConfigQueue(nextQueue);
+
+      // If more files in queue, stay in configure (React will update currentConfigFile)
+      // If queue empty, go to preview
+      if (nextQueue.length === 0) {
+        setCurrentStep('preview');
+      }
+    } catch (error) {
+      console.error(`Error parsing file ${currentConfigFile.name}:`, error);
+      alert(`Erro ao processar arquivo ${currentConfigFile.name}`);
+    }
   };
 
   const handleConfirmImport = async (finalTransactions: Transaction[]) => {
@@ -75,13 +117,24 @@ export default function Import() {
     }
   };
 
+  const handleReset = () => {
+    setCurrentStep('upload');
+    setConfigQueue([]);
+    setTransactions([]);
+  };
+
+  // Helper title for config step
+  const configTitle = currentConfigFile
+    ? `Configurar ${currentConfigFile.name} (${configQueue.length} restante${configQueue.length > 1 ? 's' : ''})`
+    : 'Configurar Arquivo';
+
   return (
     <DashboardLayout>
       <div className="max-w-5xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Importar Extrato</h1>
           <p className="text-slate-600 mt-2">
-            Faça upload do seu extrato bancário para importar transações automaticamente
+            Faça upload de seus extratos bancários para importar transações automaticamente
           </p>
         </div>
 
@@ -98,10 +151,10 @@ export default function Import() {
                 <div className="flex flex-col items-center flex-1">
                   <div
                     className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all ${currentStep === step.id
-                        ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
-                        : arr.findIndex(s => s.id === currentStep) > index
-                          ? 'bg-emerald-500 text-white'
-                          : 'bg-gray-200 text-gray-500'
+                      ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
+                      : arr.findIndex(s => s.id === currentStep) > index
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-gray-200 text-gray-500'
                       }`}
                   >
                     {index + 1}
@@ -114,8 +167,8 @@ export default function Import() {
                   <div className="flex-1 h-1 mx-4 bg-gray-200 relative">
                     <div
                       className={`absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-600 transition-all ${arr.findIndex(s => s.id === currentStep) > index
-                          ? 'w-full'
-                          : 'w-0'
+                        ? 'w-full'
+                        : 'w-0'
                         }`}
                     />
                   </div>
@@ -130,19 +183,33 @@ export default function Import() {
           <FileUploadZone onFileUpload={handleFileUpload} />
         )}
 
-        {currentStep === 'configure' && uploadedFile && (
-          <CSVConfigStep
-            file={uploadedFile}
-            onConfigured={handleCSVConfigured}
-            onBack={() => setCurrentStep('upload')}
-          />
+        {currentStep === 'configure' && currentConfigFile && (
+          <div>
+            <div className="mb-4 text-sm text-gray-500 font-medium">
+              Arquivo {currentConfigFile.name}
+            </div>
+            <CSVConfigStep
+              file={currentConfigFile}
+              onConfigured={handleCSVConfigured}
+              onBack={() => {
+                // Warning: Going back clears the queue
+                if (confirm("Voltar cancelará a importação atual. Deseja continuar?")) {
+                  handleReset();
+                }
+              }}
+            />
+          </div>
         )}
 
         {currentStep === 'preview' && transactions.length > 0 && (
           <PreviewStep
             transactions={transactions}
             onConfirm={handleConfirmImport}
-            onBack={() => setCurrentStep('upload')}
+            onBack={() => {
+              if (confirm("Voltar cancelará a importação atual. Deseja continuar?")) {
+                handleReset();
+              }
+            }}
           />
         )}
 
@@ -160,11 +227,7 @@ export default function Import() {
               {transactions.length} transações foram importadas com sucesso.
             </p>
             <button
-              onClick={() => {
-                setCurrentStep('upload');
-                setUploadedFile(null);
-                setTransactions([]);
-              }}
+              onClick={handleReset}
               className="px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all"
             >
               Importar novo arquivo

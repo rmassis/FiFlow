@@ -2,7 +2,7 @@ import { Upload, FileText, AlertCircle } from "lucide-react";
 import { useState, useRef } from "react";
 
 interface FileUploadZoneProps {
-  onFileUpload: (file: File) => void;
+  onFileUpload: (files: File[]) => void;
 }
 
 const ACCEPTED_EXTENSIONS = ['.csv', '.xlsx', '.xls', '.pdf', '.ofx'];
@@ -10,34 +10,45 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 export function FileUploadZone({ onFileUpload }: FileUploadZoneProps) {
   const [isDragging, setIsDragging] = useState(false);
-  const [error, setError] = useState<string>('');
+  const [errors, setErrors] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const validateFile = (file: File): string | null => {
     // Check file size
     if (file.size > MAX_FILE_SIZE) {
-      return 'Arquivo muito grande. Tamanho máximo: 10MB';
+      return `Arquivo ${file.name} muito grande. Tamanho máximo: 10MB`;
     }
 
     // Check file extension
     const extension = '.' + file.name.split('.').pop()?.toLowerCase();
     if (!ACCEPTED_EXTENSIONS.includes(extension)) {
-      return `Formato não suportado. Use: ${ACCEPTED_EXTENSIONS.join(', ')}`;
+      return `Arquivo ${file.name} com formato não suportado.`;
     }
 
     return null;
   };
 
-  const handleFile = (file: File) => {
-    setError('');
-    const validationError = validateFile(file);
-    
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
+  const handleFiles = (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
 
-    onFileUpload(file);
+    const files = Array.from(fileList);
+    const validFiles: File[] = [];
+    const newErrors: string[] = [];
+
+    files.forEach(file => {
+      const error = validateFile(file);
+      if (error) {
+        newErrors.push(error);
+      } else {
+        validFiles.push(file);
+      }
+    });
+
+    setErrors(newErrors);
+
+    if (validFiles.length > 0) {
+      onFileUpload(validFiles);
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -53,18 +64,11 @@ export function FileUploadZone({ onFileUpload }: FileUploadZoneProps) {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      handleFile(files[0]);
-    }
+    handleFiles(e.dataTransfer.files);
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      handleFile(files[0]);
-    }
+    handleFiles(e.target.files);
   };
 
   const openFilePicker = () => {
@@ -91,6 +95,7 @@ export function FileUploadZone({ onFileUpload }: FileUploadZoneProps) {
           ref={fileInputRef}
           type="file"
           accept={ACCEPTED_EXTENSIONS.join(',')}
+          multiple
           onChange={handleFileInputChange}
           className="hidden"
         />
@@ -108,10 +113,10 @@ export function FileUploadZone({ onFileUpload }: FileUploadZoneProps) {
 
           <div>
             <h3 className="text-xl font-bold text-gray-900 mb-2">
-              {isDragging ? 'Solte o arquivo aqui' : 'Arraste e solte seu arquivo'}
+              {isDragging ? 'Solte os arquivos aqui' : 'Arraste e solte seus arquivos'}
             </h3>
             <p className="text-slate-600 mb-1">
-              ou clique para selecionar
+              ou clique para selecionar (múltiplos permitidos)
             </p>
             <p className="text-sm text-slate-500">
               Formatos aceitos: CSV, OFX, PDF, Excel (XLSX, XLS)
@@ -123,12 +128,16 @@ export function FileUploadZone({ onFileUpload }: FileUploadZoneProps) {
         </div>
       </div>
 
-      {error && (
+      {errors.length > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="font-semibold text-red-900">Erro no arquivo</p>
-            <p className="text-sm text-red-700">{error}</p>
+            <p className="font-semibold text-red-900">Alguns arquivos não puderam ser adicionados:</p>
+            <ul className="list-disc list-inside text-sm text-red-700 mt-1">
+              {errors.map((err, index) => (
+                <li key={index}>{err}</li>
+              ))}
+            </ul>
           </div>
         </div>
       )}
