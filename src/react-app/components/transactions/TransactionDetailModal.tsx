@@ -23,12 +23,21 @@ export function TransactionDetailModal({ transaction, onClose, onUpdate, onDelet
 
   useEffect(() => {
     fetch("/api/categories")
-      .then(res => res.json())
-      .then(data => setCategories(data || []));
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
+      })
+      .then(data => setCategories(Array.isArray(data) ? data : []))
+      .catch(err => {
+        console.error("Error fetching categories:", err);
+        setCategories([]);
+      });
   }, []);
 
-  const CATEGORIAS_PAIS = categories.filter(c => !c.parent_id);
-  const AVAILABLE_SUB = categories.filter(c => c.parent_id === categories.find(p => p.name === formData.category)?.id);
+  const CATEGORIAS_PAIS = Array.isArray(categories) ? categories.filter(c => !c.parent_id) : [];
+  const AVAILABLE_SUB = Array.isArray(categories)
+    ? categories.filter(c => c.parent_id === categories.find(p => p.name === formData.category)?.id)
+    : [];
 
   const formatBRL = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {

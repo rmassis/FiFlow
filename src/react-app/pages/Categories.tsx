@@ -81,24 +81,45 @@ export default function Categories() {
     const loadData = async () => {
         setLoading(true);
         try {
+            console.log("FiFlow: Iniciando carregamento de categorias e transações...");
             const [catsRes, transRes] = await Promise.all([
-                fetch("/api/categories"),
-                fetch("/api/transactions")
+                fetch("/api/categories").catch(err => {
+                    console.error("Fetch Categories failed:", err);
+                    return { ok: false, status: 0, text: () => Promise.resolve(err.message) };
+                }),
+                fetch("/api/transactions").catch(err => {
+                    console.error("Fetch Transactions failed:", err);
+                    return { ok: false, status: 0, text: () => Promise.resolve(err.message) };
+                })
             ]);
 
-            const catsData = await catsRes.json();
-            const transData = await transRes.json();
+            const processResponse = async (res: any, name: string) => {
+                const text = await res.text();
+                if (!res.ok) {
+                    console.error(`FiFlow [${name}] API Error (${res.status}):`, text);
+                    return null;
+                }
+                try {
+                    return JSON.parse(text);
+                } catch (e: any) {
+                    console.error(`FiFlow [${name}] JSON Parse Error:`, e.message);
+                    console.log(`FiFlow [${name}] Raw Body:`, text);
+                    return null;
+                }
+            };
+
+            const catsData = await processResponse(catsRes, "Categories");
+            const transData = await processResponse(transRes, "Transactions");
 
             setCategories(Array.isArray(catsData) ? catsData : []);
-            setTransactions(Array.isArray(transData.transactions) ? transData.transactions : []);
+            setTransactions(Array.isArray(transData?.transactions) ? transData.transactions : []);
 
-            // Auto expand root items
             if (Array.isArray(catsData)) {
                 setExpanded(new Set(catsData.filter((c: any) => !c.parent_id).map((c: any) => c.id)));
             }
         } catch (error) {
-            console.error("Error loading data:", error);
-            showToast("Erro ao carregar dados", "error");
+            console.error("FiFlow: Erro crítico ao carregar dados:", error);
+            showToast("Erro ao conectar com o servidor", "error");
         } finally {
             setLoading(false);
         }
@@ -357,8 +378,8 @@ export default function Categories() {
                         <button
                             onClick={() => setViewMode('tree')}
                             className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${viewMode === 'tree'
-                                    ? 'bg-indigo-600 text-white shadow-lg'
-                                    : 'text-slate-500 hover:text-slate-700'
+                                ? 'bg-indigo-600 text-white shadow-lg'
+                                : 'text-slate-500 hover:text-slate-700'
                                 }`}
                         >
                             <Layers className="w-4 h-4" />
@@ -367,8 +388,8 @@ export default function Categories() {
                         <button
                             onClick={() => setViewMode('phantom')}
                             className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all relative ${viewMode === 'phantom'
-                                    ? 'bg-amber-600 text-white shadow-lg'
-                                    : 'text-slate-500 hover:text-slate-700'
+                                ? 'bg-amber-600 text-white shadow-lg'
+                                : 'text-slate-500 hover:text-slate-700'
                                 }`}
                         >
                             <Zap className="w-4 h-4" />
@@ -531,8 +552,8 @@ export default function Categories() {
                                         <button
                                             onClick={() => setNewCatType('despesa')}
                                             className={`py-2.5 text-xs font-bold rounded-lg transition-all ${newCatType === 'despesa'
-                                                    ? 'bg-white text-rose-600 shadow-lg'
-                                                    : 'text-white/60 hover:text-white/90'
+                                                ? 'bg-white text-rose-600 shadow-lg'
+                                                : 'text-white/60 hover:text-white/90'
                                                 }`}
                                         >
                                             Despesa
@@ -540,8 +561,8 @@ export default function Categories() {
                                         <button
                                             onClick={() => setNewCatType('receita')}
                                             className={`py-2.5 text-xs font-bold rounded-lg transition-all ${newCatType === 'receita'
-                                                    ? 'bg-white text-emerald-600 shadow-lg'
-                                                    : 'text-white/60 hover:text-white/90'
+                                                ? 'bg-white text-emerald-600 shadow-lg'
+                                                : 'text-white/60 hover:text-white/90'
                                                 }`}
                                         >
                                             Receita
@@ -652,8 +673,8 @@ export default function Categories() {
                 {toast && (
                     <div className="fixed top-8 right-8 z-50 animate-in slide-in-from-top-4 fade-in duration-200">
                         <div className={`px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 ${toast.type === 'success'
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-rose-600 text-white'
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-rose-600 text-white'
                             }`}>
                             {toast.type === 'success' ? (
                                 <CheckCircle2 className="w-5 h-5" />
@@ -724,16 +745,16 @@ function TreeNode({
         <div className="select-none">
             {/* Category Header */}
             <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-all group ${node.parent_id
-                    ? 'ml-12 bg-slate-50 border-slate-200 hover:border-slate-300'
-                    : 'bg-white border-slate-200 hover:border-indigo-200 hover:shadow-sm'
+                ? 'ml-12 bg-slate-50 border-slate-200 hover:border-slate-300'
+                : 'bg-white border-slate-200 hover:border-indigo-200 hover:shadow-sm'
                 }`}>
                 {/* Expand/Collapse Button */}
                 <button
                     onClick={() => (hasChildren || hasTransactions) && toggleExpand(node.id)}
                     disabled={!hasChildren && !hasTransactions}
                     className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${hasChildren || hasTransactions
-                            ? 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-                            : 'bg-slate-50 text-slate-300 cursor-default'
+                        ? 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                        : 'bg-slate-50 text-slate-300 cursor-default'
                         }`}
                 >
                     {isExpanded ? (
@@ -745,8 +766,8 @@ function TreeNode({
 
                 {/* Icon */}
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${node.type === 'receita'
-                        ? 'bg-emerald-50 text-emerald-600'
-                        : 'bg-rose-50 text-rose-600'
+                    ? 'bg-emerald-50 text-emerald-600'
+                    : 'bg-rose-50 text-rose-600'
                     }`}>
                     {node.icon || (node.parent_id ? '🔹' : '📁')}
                 </div>
@@ -909,10 +930,10 @@ function TreeNode({
                                     <button
                                         onClick={() => toggleSelectAll(node.transactions)}
                                         className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${allSelected
-                                                ? 'bg-indigo-600 text-white'
-                                                : someSelected
-                                                    ? 'bg-indigo-100 text-indigo-600'
-                                                    : 'bg-white border-2 border-slate-200 text-slate-300 hover:border-indigo-200'
+                                            ? 'bg-indigo-600 text-white'
+                                            : someSelected
+                                                ? 'bg-indigo-100 text-indigo-600'
+                                                : 'bg-white border-2 border-slate-200 text-slate-300 hover:border-indigo-200'
                                             }`}
                                     >
                                         {allSelected ? (
@@ -943,8 +964,8 @@ function TreeNode({
                                             <button
                                                 onClick={() => toggleSelect(t.id!)}
                                                 className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all ${isSelected
-                                                        ? 'bg-indigo-600 text-white'
-                                                        : 'bg-white border-2 border-slate-200 text-slate-300 hover:border-indigo-300'
+                                                    ? 'bg-indigo-600 text-white'
+                                                    : 'bg-white border-2 border-slate-200 text-slate-300 hover:border-indigo-300'
                                                     }`}
                                             >
                                                 {isSelected ? (
@@ -1077,8 +1098,8 @@ function PhantomCategoryCard({ phantom, onApprove, onQuickMove, officialCategori
                                         <button
                                             onClick={() => toggleSelect(t.id!)}
                                             className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all ${isSelected
-                                                    ? 'bg-indigo-600 text-white'
-                                                    : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                                                ? 'bg-indigo-600 text-white'
+                                                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
                                                 }`}
                                         >
                                             {isSelected ? (
