@@ -122,12 +122,28 @@ export default function Categories() {
         }
     };
 
-    const handleQuickMove = async (transactionId: string, newCategoryName: string, type: string) => {
+    const handleQuickMove = async (transactionId: string, targetCategory: Category) => {
         try {
+            // Find parent if it's a subcategory
+            let category = targetCategory.name;
+            let subcategory = "";
+
+            if (targetCategory.parent_id) {
+                const parent = categories.find(c => c.id === targetCategory.parent_id);
+                if (parent) {
+                    category = parent.name;
+                    subcategory = targetCategory.name;
+                }
+            }
+
             const response = await fetch(`/api/transactions/${transactionId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ category: newCategoryName, type }),
+                body: JSON.stringify({
+                    category,
+                    subcategory,
+                    type: targetCategory.type
+                }),
             });
             if (response.ok) {
                 loadData();
@@ -576,10 +592,10 @@ function TreeNode({ node, expanded, toggleExpand, onDelete, loadData, officialCa
         <div className="select-none mb-1">
             <div
                 className={`group flex items-center justify-between p-3 rounded-2xl transition-all ${node.parent_id
-                        ? 'ml-8 border-l-2 border-slate-100 pl-6'
-                        : node.isPhantom
-                            ? 'bg-amber-50/50 border border-amber-100 shadow-sm'
-                            : 'bg-slate-50/50 border border-transparent hover:border-slate-200'
+                    ? 'ml-8 border-l-2 border-slate-100 pl-6'
+                    : node.isPhantom
+                        ? 'bg-amber-50/50 border border-amber-100 shadow-sm'
+                        : 'bg-slate-50/50 border border-transparent hover:border-slate-200'
                     } hover:bg-white hover:shadow-lg hover:shadow-slate-200/50`}
             >
                 <div className="flex items-center gap-4">
@@ -633,7 +649,7 @@ function TreeNode({ node, expanded, toggleExpand, onDelete, loadData, officialCa
                                 EFETIVAR
                             </button>
                         )}
-                        {!node.parent_id && node.isOfficial && (
+                        {node.isOfficial && (
                             <button
                                 onClick={() => setIsAdding(!isAdding)}
                                 className="p-2 text-indigo-600 bg-white hover:shadow-md rounded-xl border border-slate-100 transition-all"
@@ -661,7 +677,7 @@ function TreeNode({ node, expanded, toggleExpand, onDelete, loadData, officialCa
                     <input
                         autoFocus
                         className="flex-1 bg-transparent border-none outline-none text-sm px-2 font-bold text-indigo-900 placeholder:text-indigo-300"
-                        placeholder="Nome da subcategoria..."
+                        placeholder={`Subcategoria para ${node.name}...`}
                         value={subName}
                         onChange={(e) => setSubName(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleCreateSub()}
@@ -734,13 +750,15 @@ function TreeNode({ node, expanded, toggleExpand, onDelete, loadData, officialCa
                                                         {officialCategories.map((oc: Category) => (
                                                             <button
                                                                 key={oc.id}
-                                                                onClick={() => onQuickMove(t.id, oc.name, oc.type)}
+                                                                onClick={() => onQuickMove(t.id, oc)}
                                                                 className="w-full text-left px-3 py-2 text-xs font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl transition-all flex items-center gap-2"
                                                             >
                                                                 <div className="w-5 h-5 rounded-lg bg-slate-50 flex items-center justify-center text-[10px] group-hover:bg-indigo-100 transition-colors">
                                                                     {oc.icon || '📁'}
                                                                 </div>
-                                                                {oc.name}
+                                                                <span className={oc.parent_id ? 'ml-2 text-slate-400' : ''}>
+                                                                    {oc.parent_id ? '↳ ' : ''}{oc.name}
+                                                                </span>
                                                             </button>
                                                         ))}
                                                     </div>
