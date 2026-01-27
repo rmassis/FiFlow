@@ -132,11 +132,25 @@ export default function Categories() {
         setExpanded(next);
     };
 
-    const handleAddCategory = async (parentId?: string | null, nameOverride?: string) => {
+    const handleAddCategory = async (parentId?: string | null, nameOverride?: string, idToApprove?: string) => {
         const name = nameOverride || newCatName;
         if (!name.trim()) return;
 
         try {
+            if (idToApprove) {
+                // If we are approving an existing phantom category
+                const response = await fetch(`/api/categories/${idToApprove}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ is_pending: false })
+                });
+                if (response.ok) {
+                    loadData();
+                    showToast(`Categoria "${name}" aprovada!`);
+                }
+                return;
+            }
+
             const response = await fetch("/api/categories", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -145,7 +159,8 @@ export default function Categories() {
                     type: newCatType,
                     parent_id: parentId,
                     color: "#94A3B8",
-                    icon: parentId ? "🔹" : "📁"
+                    icon: parentId ? "🔹" : "📁",
+                    is_pending: false
                 })
             });
             if (response.ok) {
@@ -154,8 +169,8 @@ export default function Categories() {
                 showToast(`Categoria "${name}" criada com sucesso!`);
             }
         } catch (error) {
-            console.error("Error adding category:", error);
-            showToast("Erro ao criar categoria", "error");
+            console.error("Error adding/approving category:", error);
+            showToast("Erro ao processar categoria", "error");
         }
     };
 
@@ -253,7 +268,7 @@ export default function Categories() {
                 await fetch("/api/categories", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(cat)
+                    body: JSON.stringify({ ...cat, is_pending: false })
                 });
             }
             loadData();
@@ -280,16 +295,18 @@ export default function Categories() {
         const map: Record<string, any> = {};
         const roots: any[] = [];
 
-        categories.forEach(cat => {
+        // Only show official (is_pending: false) categories in the tree
+        const officialCats = categories.filter(c => !c.is_pending);
+
+        officialCats.forEach(cat => {
             map[cat.id] = {
                 ...cat,
-                isOfficial: true,
                 children: [],
                 transactions: transByCatName[cat.name] || []
             };
         });
 
-        categories.forEach(cat => {
+        officialCats.forEach(cat => {
             if (cat.parent_id && map[cat.parent_id]) {
                 map[cat.parent_id].children.push(map[cat.id]);
             } else if (!cat.parent_id) {
@@ -301,11 +318,26 @@ export default function Categories() {
     }, [categories, transByCatName]);
 
     const phantomCategories = useMemo(() => {
-        const officialNames = new Set(categories.map(c => c.name));
         const phantoms: any[] = [];
 
+        // 1. Phantoms from is_pending: true categories in DB
+        categories.filter(c => c.is_pending).forEach(cat => {
+            const trans = transByCatName[cat.name] || [];
+            phantoms.push({
+                ...cat,
+                isPhantom: true,
+                transactions: trans,
+                count: trans.length,
+                total: trans.reduce((sum, t) => sum + t.amount, 0)
+            });
+        });
+
+        // 2. Legacy check: Phantoms from transactions with no official category
+        const officialNames = new Set(categories.filter(c => !c.is_pending).map(c => c.name));
+        const pendingNamesInDb = new Set(categories.filter(c => c.is_pending).map(c => c.name));
+
         Object.keys(transByCatName).forEach(catName => {
-            if (!officialNames.has(catName) && catName !== "Sem Categoria") {
+            if (!officialNames.has(catName) && !pendingNamesInDb.has(catName) && catName !== "Sem Categoria") {
                 const trans = transByCatName[catName];
                 phantoms.push({
                     id: `phantom-${catName}`,
@@ -514,7 +546,7 @@ export default function Categories() {
                                                 <PhantomCategoryCard
                                                     key={phantom.id}
                                                     phantom={phantom}
-                                                    onApprove={() => handleAddCategory(null, phantom.name)}
+                                                    onApprove={() => handleAddCategory(null, phantom.name, phantom.id)}
                                                     onQuickMove={handleQuickMove}
                                                     officialCategories={categories}
                                                 />

@@ -5,6 +5,69 @@ import type { Transaction } from "@/shared/types";
 
 const app = new Hono<{ Bindings: Env }>();
 
+// Helper to sync categories from transactions
+async function syncCategories(supabase: any, transactions: any[]) {
+  const catsToSync = transactions.map(t => ({
+    name: t.category,
+    subcategory: t.subcategory,
+    type: t.type
+  })).filter(c => c.name && c.name !== "");
+
+  if (catsToSync.length === 0) return;
+
+  // Get all existing categories for this user (Supabase handles user_id via RLS, but we need to match)
+  const { data: existingCats } = await supabase.from('categories').select('*');
+  const existingMap = new Map();
+  existingCats?.forEach((c: any) => {
+    const key = `${c.name}|${c.parent_id || 'root'}`;
+    existingMap.set(key, c.id);
+  });
+
+  for (const item of catsToSync) {
+    // 1. Sync Root Category
+    let rootId = existingMap.get(`${item.name}|root`);
+    if (!rootId) {
+      const { data: newRoot, error: rootErr } = await supabase
+        .from('categories')
+        .insert({
+          name: item.name,
+          type: item.type,
+          is_pending: true,
+          icon: "🤖"
+        })
+        .select()
+        .single();
+
+      if (!rootErr && newRoot) {
+        rootId = newRoot.id;
+        existingMap.set(`${item.name}|root`, rootId);
+      }
+    }
+
+    // 2. Sync Subcategory
+    if (rootId && item.subcategory && item.subcategory !== "") {
+      const subKey = `${item.subcategory}|${rootId}`;
+      if (!existingMap.has(subKey)) {
+        const { data: newSub, error: subErr } = await supabase
+          .from('categories')
+          .insert({
+            name: item.subcategory,
+            type: item.type,
+            parent_id: rootId,
+            is_pending: true,
+            icon: "🔹"
+          })
+          .select()
+          .single();
+
+        if (!subErr && newSub) {
+          existingMap.set(subKey, newSub.id);
+        }
+      }
+    }
+  }
+}
+
 app.post("/api/categorize", async (c) => {
   try {
     const transaction: Transaction = await c.req.json();
@@ -155,6 +218,9 @@ app.post("/api/transactions", async (c) => {
 
     if (error) throw error;
 
+    // 5. Sync Categories to Categories Table
+    await syncCategories(supabase, toInsert);
+
     return c.json({
       success: true,
       count: toInsert.length,
@@ -281,6 +347,23 @@ app.patch("/api/transactions/:id", async (c) => {
       .eq('id', id);
 
     if (error) throw error;
+
+    // 2. Sync if category/subcategory updated
+    if (dbUpdates.category || dbUpdates.subcategory) {
+      const { data: updatedTrans } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (updatedTrans) {
+        await syncCategories(supabase, [{
+          category: updatedTrans.category,
+          subcategory: updatedTrans.subcategory,
+          type: updatedTrans.type
+        }]);
+      }
+    }
 
     return c.json({ success: true });
   } catch (error) {
