@@ -215,6 +215,28 @@ export function PreviewStep({ transactions, onConfirm, onBack }: PreviewStepProp
         </div>
       </div>
 
+      {/* Top Actions */}
+      <div className="flex items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+        <div className="text-sm text-gray-500">
+          Verifique as categorias antes de confirmar.
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={onBack}
+            className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Voltar
+          </button>
+          <button
+            onClick={() => onConfirm(filteredTransactions)}
+            disabled={isCategorizing}
+            className="px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Confirmar e Importar ({filteredTransactions.length})
+          </button>
+        </div>
+      </div>
+
       {/* Categorization Progress */}
       {isCategorizing && (
         <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-6">
