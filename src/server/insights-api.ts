@@ -26,7 +26,7 @@ function dbToInsight(row: any): Insight {
 // GET /api/insights - List all insights
 app.get("/api/insights", async (c) => {
   try {
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
 
     const { data: results, error } = await supabase
       .from('insights')
@@ -46,7 +46,7 @@ app.get("/api/insights", async (c) => {
 // POST /api/insights/generate - Generate new insights
 app.post("/api/insights/generate", async (c) => {
   try {
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
     const apiKey = c.env.OPENAI_API_KEY;
 
     if (!apiKey) {
@@ -108,6 +108,9 @@ app.post("/api/insights/generate", async (c) => {
     // Generate insights using AI
     const insights = await generateInsights(context, apiKey);
 
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return c.json({ error: "Usuário não autenticado" }, 401);
+
     // Save insights to database
     // Batch insert is more efficient
     if (insights.length > 0) {
@@ -122,7 +125,8 @@ app.post("/api/insights/generate", async (c) => {
             ação_sugerida: insight.ação_sugerida,
             economia_potencial: insight.economia_potencial || null,
             period_start: new Date(insight.period_start).toISOString().split("T")[0],
-            period_end: new Date(insight.period_end).toISOString().split("T")[0]
+            period_end: new Date(insight.period_end).toISOString().split("T")[0],
+            user_id: user.id
           }))
         );
 
@@ -140,7 +144,7 @@ app.post("/api/insights/generate", async (c) => {
 app.patch("/api/insights/:id/read", async (c) => {
   try {
     const id = c.req.param("id");
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
 
     const { error } = await supabase
       .from('insights')
@@ -160,7 +164,7 @@ app.patch("/api/insights/:id/read", async (c) => {
 app.patch("/api/insights/:id/apply", async (c) => {
   try {
     const id = c.req.param("id");
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
 
     const { error } = await supabase
       .from('insights')
@@ -180,7 +184,7 @@ app.patch("/api/insights/:id/apply", async (c) => {
 app.delete("/api/insights/:id", async (c) => {
   try {
     const id = c.req.param("id");
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
 
     const { error } = await supabase
       .from('insights')

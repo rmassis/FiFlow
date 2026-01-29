@@ -8,7 +8,7 @@ const EXCLUDED_CATEGORIES = ['Investimento', 'Investimentos', 'Aplicação', 'Re
 // GET /api/dashboard/stats - Get dashboard summary statistics
 app.get("/api/dashboard/stats", async (c) => {
   try {
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
     const url = new URL(c.req.url); // Use URL to get query params safely in all environments
 
     // Parse Date Ranges from Query (sent by DashboardContext)
@@ -129,7 +129,7 @@ app.get("/api/dashboard/stats", async (c) => {
 // GET /api/dashboard/evolution - Get evolution chart data
 app.get("/api/dashboard/evolution", async (c) => {
   try {
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
     const url = new URL(c.req.url);
     const startDate = url.searchParams.get("startDate")?.split('T')[0] || "";
     const endDate = url.searchParams.get("endDate")?.split('T')[0] || "";
@@ -185,7 +185,7 @@ app.get("/api/dashboard/evolution", async (c) => {
 // GET /api/dashboard/categories - Get expenses by category
 app.get("/api/dashboard/categories", async (c) => {
   try {
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
     const url = new URL(c.req.url);
     const startDate = url.searchParams.get("startDate")?.split('T')[0] || "";
     const endDate = url.searchParams.get("endDate")?.split('T')[0] || "";
@@ -241,7 +241,7 @@ app.get("/api/dashboard/categories", async (c) => {
 // So we DO NOT exclude them here.
 app.get("/api/dashboard/recent", async (c) => {
   try {
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
     const limit = parseInt(c.req.query("limit") || "10");
 
     const { data: results, error } = await supabase

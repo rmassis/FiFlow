@@ -228,6 +228,9 @@ app.post("/api/transactions", async (c) => {
     }
 
     // 4. Insert only new transactions
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Usuário não autenticado");
+
     const { error } = await supabase.from('transactions').insert(
       toInsert.map(t => {
         let dateToUse;
@@ -251,7 +254,8 @@ app.post("/api/transactions", async (c) => {
           imported_from: t.importedFrom,
           imported_at: new Date(t.importedAt || new Date()).toISOString(),
           bank_account_id: t.bankAccountId || null,
-          credit_card_id: t.creditCardId || null
+          credit_card_id: t.creditCardId || null,
+          user_id: user.id
         };
       })
     );

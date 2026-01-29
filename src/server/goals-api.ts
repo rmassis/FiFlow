@@ -107,7 +107,7 @@ async function calculateCurrentAmount(
 // GET /api/goals - List all goals
 app.get("/api/goals", async (c) => {
   try {
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
     const { data, error } = await supabase
       .from('goals')
       .select('*')
@@ -134,7 +134,10 @@ app.get("/api/goals", async (c) => {
 app.post("/api/goals", async (c) => {
   try {
     const goal: Goal = await c.req.json();
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return c.json({ error: "Usuário não autenticado" }, 401);
 
     const { data, error } = await supabase
       .from('goals')
@@ -151,7 +154,8 @@ app.post("/api/goals", async (c) => {
         notify_at_75: goal.notifyAt75,
         notify_at_90: goal.notifyAt90,
         notify_on_exceed: goal.notifyOnExceed,
-        status: "active"
+        status: "active",
+        user_id: user.id
       })
       .select()
       .single();
@@ -170,7 +174,7 @@ app.put("/api/goals/:id", async (c) => {
   try {
     const id = c.req.param("id");
     const goal: Goal = await c.req.json();
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
 
     const { error } = await supabase
       .from('goals')
@@ -203,7 +207,7 @@ app.put("/api/goals/:id", async (c) => {
 app.delete("/api/goals/:id", async (c) => {
   try {
     const id = c.req.param("id");
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
 
     const { error } = await supabase
       .from('goals')

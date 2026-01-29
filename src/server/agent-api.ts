@@ -166,11 +166,10 @@ app.post("/api/agent/chat", async (c) => {
   try {
     const { message, history } = await c.req.json();
     const apiKey = c.env.OPENAI_API_KEY;
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
 
-    if (!apiKey) {
-      return c.json({ error: "OPENAI_API_KEY não configurada" }, 500);
-    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return c.json({ error: "Usuário não autenticado" }, 401);
 
     const functions = createAgentFunctions(supabase);
 
@@ -184,14 +183,16 @@ app.post("/api/agent/chat", async (c) => {
     // Save user message
     await supabase.from('chat_messages').insert({
       role: 'user',
-      content: message
+      content: message,
+      user_id: user.id
     });
 
     // Save assistant response
     await supabase.from('chat_messages').insert({
       role: 'assistant',
       content: result.response,
-      function_call: result.functionCalls.length > 0 ? JSON.stringify(result.functionCalls) : null
+      function_call: result.functionCalls.length > 0 ? JSON.stringify(result.functionCalls) : null,
+      user_id: user.id
     });
 
     return c.json({
@@ -207,7 +208,7 @@ app.post("/api/agent/chat", async (c) => {
 // GET /api/agent/history - Get chat history
 app.get("/api/agent/history", async (c) => {
   try {
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
     const limit = parseInt(c.req.query("limit") || "50");
 
     const { data, error } = await supabase
@@ -238,7 +239,7 @@ app.get("/api/agent/history", async (c) => {
 // DELETE /api/agent/history - Clear chat history
 app.delete("/api/agent/history", async (c) => {
   try {
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
 
     // Delete all messages
     const { error } = await supabase
