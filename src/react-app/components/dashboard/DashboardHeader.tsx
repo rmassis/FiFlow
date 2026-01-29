@@ -3,8 +3,8 @@ import { useFinanceStore } from "@/react-app/contexts/FinanceContext";
 import { AdvancedDateFilter } from "./AdvancedDateFilter";
 
 export function DashboardHeader() {
-  const { userProfile } = useFinanceStore();
-  const userName = userProfile?.full_name?.split(' ')[0] || "Usuário";
+  const user = useFinanceStore(state => state.user);
+  const userName = user?.personalInfo?.fullName?.split(' ')[0] || "Usuário";
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">

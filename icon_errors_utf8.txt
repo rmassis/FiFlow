@@ -1,0 +1,2 @@
+﻿Suspicious: DashboardContextType used in c:\Users\rodri\OneDrive\Documents\FiFlow\src\react-app\contexts\DashboardContext.tsx but not clearly imported or defined.
+Suspicious: FinanceStore used in c:\Users\rodri\OneDrive\Documents\FiFlow\src\react-app\contexts\FinanceContext.tsx but not clearly imported or defined.

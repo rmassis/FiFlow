@@ -263,7 +263,6 @@ app.post("/api/transactions", async (c) => {
     if (error) throw error;
 
     // 5. Get User ID for Sync Categories
-    const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       await syncCategories(supabase, toInsert, user.id);
     }
