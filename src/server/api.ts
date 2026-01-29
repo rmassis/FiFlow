@@ -6,7 +6,7 @@ import type { Transaction } from "@/shared/types";
 const app = new Hono<{ Bindings: Env }>();
 
 // Helper to sync categories from transactions
-async function syncCategories(supabase: any, transactions: any[]) {
+async function syncCategories(supabase: any, transactions: any[], userId: string) {
   const catsToSync = transactions.map(t => ({
     name: t.category,
     subcategory: t.subcategory,
@@ -15,7 +15,7 @@ async function syncCategories(supabase: any, transactions: any[]) {
 
   if (catsToSync.length === 0) return;
 
-  // Get all existing categories for this user (Supabase handles user_id via RLS, but we need to match)
+  // Get all existing categories for this user 
   const { data: existingCats } = await supabase.from('categories').select('*');
   const existingMap = new Map();
   existingCats?.forEach((c: any) => {
@@ -27,20 +27,34 @@ async function syncCategories(supabase: any, transactions: any[]) {
     // 1. Sync Root Category
     let rootId = existingMap.get(`${item.name}|root`);
     if (!rootId) {
+      const rootData: any = {
+        name: item.name,
+        type: item.type,
+        is_pending: true,
+        icon: "🤖",
+        user_id: userId
+      };
+
       const { data: newRoot, error: rootErr } = await supabase
         .from('categories')
-        .insert({
-          name: item.name,
-          type: item.type,
-          is_pending: true,
-          icon: "🤖"
-        })
+        .insert(rootData)
         .select()
         .single();
 
       if (!rootErr && newRoot) {
         rootId = newRoot.id;
         existingMap.set(`${item.name}|root`, rootId);
+      } else if (rootErr && rootErr.message?.includes('is_pending')) {
+        delete rootData.is_pending;
+        const { data: retryRoot } = await supabase
+          .from('categories')
+          .insert(rootData)
+          .select()
+          .single();
+        if (retryRoot) {
+          rootId = retryRoot.id;
+          existingMap.set(`${item.name}|root`, rootId);
+        }
       }
     }
 
@@ -48,20 +62,35 @@ async function syncCategories(supabase: any, transactions: any[]) {
     if (rootId && item.subcategory && item.subcategory !== "") {
       const subKey = `${item.subcategory}|${rootId}`;
       if (!existingMap.has(subKey)) {
+        const subData: any = {
+          name: item.subcategory,
+          type: item.type,
+          parent_id: rootId,
+          icon: "🔹",
+          user_id: userId
+        };
+
+        // We set is_pending only if it's available in the DB or we are sure it's there
+        // Actually, since we are moving towards adding it, let's keep it but handle error
+        subData.is_pending = true;
+
         const { data: newSub, error: subErr } = await supabase
           .from('categories')
-          .insert({
-            name: item.subcategory,
-            type: item.type,
-            parent_id: rootId,
-            is_pending: true,
-            icon: "🔹"
-          })
+          .insert(subData)
           .select()
           .single();
 
         if (!subErr && newSub) {
           existingMap.set(subKey, newSub.id);
+        } else if (subErr && subErr.message?.includes('is_pending')) {
+          // Fallback if column missing
+          delete subData.is_pending;
+          const { data: retrySub } = await supabase
+            .from('categories')
+            .insert(subData)
+            .select()
+            .single();
+          if (retrySub) existingMap.set(subKey, retrySub.id);
         }
       }
     }
@@ -149,7 +178,7 @@ app.post("/api/categorize-batch", async (c) => {
 app.post("/api/transactions", async (c) => {
   try {
     const { transactions }: { transactions: Transaction[] } = await c.req.json();
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
 
     if (transactions.length === 0) {
       return c.json({ success: true, count: 0 });
@@ -200,41 +229,60 @@ app.post("/api/transactions", async (c) => {
 
     // 4. Insert only new transactions
     const { error } = await supabase.from('transactions').insert(
-      toInsert.map(t => ({
-        date: new Date(t.date).toISOString().split("T")[0],
-        description: t.description,
-        amount: t.amount,
-        type: t.type,
-        category: t.category,
-        subcategory: t.subcategory,
-        confidence: t.confidence,
-        needs_review: t.needsReview,
-        imported_from: t.importedFrom,
-        imported_at: new Date(t.importedAt).toISOString(),
-        bank_account_id: t.bankAccountId,
-        credit_card_id: t.creditCardId
-      }))
+      toInsert.map(t => {
+        let dateToUse;
+        try {
+          const parsed = new Date(t.date);
+          if (isNaN(parsed.getTime())) throw new Error();
+          dateToUse = parsed.toISOString().split("T")[0];
+        } catch (e) {
+          dateToUse = new Date().toISOString().split("T")[0];
+        }
+
+        return {
+          date: dateToUse,
+          description: t.description,
+          amount: t.amount,
+          type: t.type,
+          category: t.category,
+          subcategory: t.subcategory,
+          confidence: t.confidence,
+          needs_review: t.needsReview,
+          imported_from: t.importedFrom,
+          imported_at: new Date(t.importedAt || new Date()).toISOString(),
+          bank_account_id: t.bankAccountId || null,
+          credit_card_id: t.creditCardId || null
+        };
+      })
     );
 
     if (error) throw error;
 
-    // 5. Sync Categories to Categories Table
-    await syncCategories(supabase, toInsert);
+    // 5. Get User ID for Sync Categories
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await syncCategories(supabase, toInsert, user.id);
+    }
 
     return c.json({
       success: true,
       count: toInsert.length,
       duplicates: transactions.length - toInsert.length
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error saving transactions:", error);
-    return c.json({ error: "Erro ao salvar transações" }, 500);
+    return c.json({
+      error: "Erro ao salvar transações",
+      details: error.message || error,
+      hint: error.hint,
+      code: error.code
+    }, 500);
   }
 });
 
 app.get("/api/transactions", async (c) => {
   try {
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
     const url = new URL(c.req.url);
 
     let query = supabase.from('transactions').select('*');
@@ -292,7 +340,7 @@ app.get("/api/transactions", async (c) => {
 app.get("/api/transactions/:id", async (c) => {
   try {
     const id = c.req.param("id");
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
 
     const { data, error } = await supabase
       .from('transactions')
@@ -327,7 +375,7 @@ app.patch("/api/transactions/:id", async (c) => {
   try {
     const id = c.req.param("id");
     const updates: Partial<Transaction> = await c.req.json();
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
 
     const dbUpdates: any = {};
     if (updates.description !== undefined) dbUpdates.description = updates.description;
@@ -375,7 +423,7 @@ app.patch("/api/transactions/:id", async (c) => {
 app.delete("/api/transactions/:id", async (c) => {
   try {
     const id = c.req.param("id");
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
 
     const { error } = await supabase
       .from('transactions')
@@ -393,7 +441,7 @@ app.delete("/api/transactions/:id", async (c) => {
 
 app.get("/api/transactions/stats/categories", async (c) => {
   try {
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
 
     // Note: Supabase JS doesn't support complex aggregations directly easily, 
     // we might need an RPC function or fetch and aggregate.
@@ -436,11 +484,76 @@ app.get("/api/transactions/stats/categories", async (c) => {
   }
 });
 
+// Helper function to clean and normalize category names (sync with frontend)
+function formatCategoryName(name: string): string {
+  if (!name) return name;
+  return name
+    .trim()
+    .replace(/[0-9]+$/, '') // Remove trailing numbers
+    .replace(/[^a-zA-ZÀ-ÿ\u00C0-\u017F\s]/g, '') // Keep only letters, accents, and spaces
+    .replace(/\s+/g, ' ') // Normalize spaces
+    .trim()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
 // Categories API
+
+app.post("/api/categories/cleanup", async (c) => {
+  try {
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
+    const { data: categories, error } = await supabase
+      .from('categories')
+      .select('*');
+
+    if (error) throw error;
+
+    let totalProcessed = categories.length;
+    let cleanedCount = 0;
+    let duplicatesRemoved = 0;
+
+    const seen = new Map(); // name -> id
+
+    for (const cat of categories) {
+      const cleanName = formatCategoryName(cat.name);
+
+      // 1. Check for duplicates
+      if (seen.has(cleanName.toLowerCase())) {
+        const originalId = seen.get(cleanName.toLowerCase());
+        // Simple strategy: delete current duplicate
+        await supabase.from('categories').delete().eq('id', cat.id);
+        duplicatesRemoved++;
+        continue;
+      }
+
+      seen.set(cleanName.toLowerCase(), cat.id);
+
+      // 2. Check if rename needed
+      if (cleanName !== cat.name) {
+        await supabase
+          .from('categories')
+          .update({ name: cleanName })
+          .eq('id', cat.id);
+        cleanedCount++;
+      }
+    }
+
+    return c.json({
+      success: true,
+      totalProcessed,
+      cleanedCount,
+      duplicatesRemoved
+    });
+  } catch (error) {
+    console.error("Error cleaning up categories:", error);
+    return c.json({ error: "Erro na limpeza das categorias" }, 500);
+  }
+});
 
 app.get("/api/categories", async (c) => {
   try {
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
     const { data, error } = await supabase
       .from('categories')
       .select('*')
@@ -460,7 +573,7 @@ app.get("/api/categories", async (c) => {
 app.post("/api/categories", async (c) => {
   try {
     const category = await c.req.json();
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
 
     const { data, error } = await supabase
       .from('categories')
@@ -470,9 +583,14 @@ app.post("/api/categories", async (c) => {
 
     if (error) throw error;
     return c.json(data);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error creating category:", error);
-    return c.json({ error: "Erro ao criar categoria" }, 500);
+    return c.json({
+      error: "Erro ao criar categoria",
+      details: error.message || error,
+      hint: error.hint,
+      code: error.code
+    }, 500);
   }
 });
 
@@ -480,7 +598,7 @@ app.patch("/api/categories/:id", async (c) => {
   try {
     const id = c.req.param("id");
     const updates = await c.req.json();
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
 
     const { data, error } = await supabase
       .from('categories')
@@ -500,7 +618,7 @@ app.patch("/api/categories/:id", async (c) => {
 app.delete("/api/categories/:id", async (c) => {
   try {
     const id = c.req.param("id");
-    const supabase = createSupabaseClient(c.env);
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
 
     const { error } = await supabase
       .from('categories')
@@ -534,6 +652,57 @@ app.post("/api/categories/reclassify", async (c) => {
   } catch (error) {
     console.error("Error reclassifying transactions:", error);
     return c.json({ error: "Erro ao reclassificar transações" }, 500);
+  }
+});
+
+app.post("/api/system/reset", async (c) => {
+  try {
+    const supabase = createSupabaseClient(c.env, c.req.header("Authorization"));
+
+    // Order matters for foreign keys
+    const tables = [
+      'budgets',
+      'goals',
+      'transactions',
+      'categories',
+      'bank_accounts',
+      'credit_cards',
+      'investments' // Added missing table
+    ];
+
+    const results: any = {};
+
+    for (const table of tables) {
+      // Trying a universal approach: delete everything where ID is not null
+      // Some Supabase versions/configs might require different filters
+      const { data, error, count } = await supabase
+        .from(table)
+        .delete()
+        .neq('id', -1) // Generic numeric filter
+        .or('id.neq.00000000-0000-0000-0000-000000000000') // Generic UUID filter fallback
+        .select('*', { count: 'exact' }); // requesting count to verify
+
+      if (error) {
+        // If the combined filter fails, try a simpler one
+        const { error: error2 } = await supabase.from(table).delete().not('id', 'is', null);
+        if (error2) {
+          console.error(`FAILED to reset table ${table}:`, error2);
+          results[table] = { success: false, error: error2 };
+        } else {
+          results[table] = { success: true };
+        }
+      } else {
+        results[table] = { success: true, count };
+      }
+    }
+
+    return c.json({ success: true, results, message: "Operação de reset concluída." });
+  } catch (error: any) {
+    console.error("Critical error during system reset:", error);
+    return c.json({
+      error: "Erro crítico ao resetar o sistema",
+      details: error.message || error
+    }, 500);
   }
 });
 

@@ -1,0 +1,26 @@
+﻿--- Testing SELECT ---
+Categories: []
+--- Testing INSERT ---
+node : Insert Error: {
+No linha:1 caractere:1
++ node test_perm.js > 
+test_output.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo    
+          : NotSpeci  
+  fied: (Insert Err   
+ or: {:String) [],    
+ RemoteException
+    + FullyQualifiedE 
+   rrorId : NativeCo  
+  mmandError
+ 
+  code: '42501',
+  details: null,
+  hint: null,
+  message: 'new row 
+violates row-level 
+security policy for 
+table "categories"'
+}

@@ -7,6 +7,14 @@ export type Env = {
     OPENAI_API_KEY?: string;
 };
 
-export const createSupabaseClient = (env: Env) => {
-    return createClient(env.SUPABASE_URL, env.SUPABASE_KEY);
+export const createSupabaseClient = (env: Env, accessToken?: string) => {
+    const options: any = {};
+    if (accessToken) {
+        options.global = {
+            headers: {
+                Authorization: accessToken,
+            },
+        };
+    }
+    return createClient(env.SUPABASE_URL, env.SUPABASE_KEY, options);
 };

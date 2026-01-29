@@ -1,0 +1,2 @@
+﻿--- Checking Columns of transactions ---
+Error with user_id in transactions: Could not find the 'user_id' column of 'transactions' in the schema cache

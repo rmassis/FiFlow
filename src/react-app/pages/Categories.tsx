@@ -1,71 +1,66 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
+    Tag,
     Plus,
-    ChevronRight,
-    ChevronDown,
     Edit2,
     Trash2,
-    Save,
-    X,
     Search,
     RefreshCw,
-    Tag,
-    AlertCircle,
-    FileText,
-    Calendar,
-    History,
-    CheckSquare,
-    Square,
-    Move,
-    ArrowDownWideNarrow,
-    Layers,
-    Info,
-    Zap,
+    ChevronRight,
+    X,
+    ArrowLeft,
     CheckCircle2,
-    FolderOpen,
-    Folder,
-    ChevronUp
+    AlertCircle,
+    TrendingDown,
+    TrendingUp,
+    Filter,
+    Layers,
+    History,
+    MousePointer2,
+    Sparkles,
+    Check
 } from "lucide-react";
+import { Link, useNavigate } from "react-router";
 import { DashboardLayout } from "@/react-app/components/dashboard/DashboardLayout";
 import { Category, Transaction } from "@/shared/types";
-
-// Default categories seed
-const DEFAULT_CATEGORIES = [
-    { name: "Moradia", type: "despesa", icon: "🏠", color: "#6366F1" },
-    { name: "Alimentação", type: "despesa", icon: "🍱", color: "#10B981" },
-    { name: "Transporte", type: "despesa", icon: "🚗", color: "#F59E0B" },
-    { name: "Lazer", type: "despesa", icon: "🎨", color: "#EC4899" },
-    { name: "Saúde", type: "despesa", icon: "🏥", color: "#EF4444" },
-    { name: "Educação", type: "despesa", icon: "📚", color: "#8B5CF6" },
-    { name: "Salário", type: "receita", icon: "💰", color: "#059669" },
-    { name: "Rendimento", type: "receita", icon: "📈", color: "#14B8A6" },
-    { name: "Vendas", type: "receita", icon: "🛍️", color: "#2563EB" },
-];
-
-type ViewMode = 'tree' | 'phantom' | 'audit';
+import { supabase } from "@/lib/supabase";
+import { useFinanceStore } from "@/react-app/contexts/FinanceContext";
 
 export default function Categories() {
     const [categories, setCategories] = useState<Category[]>([]);
+    const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [expanded, setExpanded] = useState<Set<string>>(new Set());
-    const [newCatName, setNewCatName] = useState("");
-    const [newCatType, setNewCatType] = useState<'receita' | 'despesa'>('despesa');
     const [searchTerm, setSearchTerm] = useState("");
-    const [editingId, setEditingId] = useState<string | null>(null);
-    const [editingName, setEditingName] = useState("");
-    const [viewMode, setViewMode] = useState<ViewMode>('tree');
-
-    // Selection state
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-    const [showMoveModal, setShowMoveModal] = useState(false);
-
-    // Toast notifications
+    const [isLoading, setIsLoading] = useState(true);
+    const [isCreating, setIsCreating] = useState(false);
+    const [newCategoryName, setNewCategoryName] = useState("");
+    const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+    const [editCategoryName, setEditCategoryName] = useState("");
+    const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+    const [userId, setUserId] = useState<string | null>(null);
+
+    const storeUser = useFinanceStore(state => state.user);
+    const createGuestUser = useFinanceStore(state => state.createGuestUser);
+    const navigate = useNavigate();
 
     useEffect(() => {
-        loadData();
+        const init = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user && !storeUser) {
+                console.log("No user identified, creating guest session...");
+                await createGuestUser();
+            }
+            loadCategories();
+        };
+        init();
     }, []);
+
+    useEffect(() => {
+        if (selectedCategory) {
+            loadTransactions(selectedCategory.name);
+        }
+    }, [selectedCategory]);
 
     useEffect(() => {
         if (toast) {
@@ -78,114 +73,210 @@ export default function Categories() {
         setToast({ message, type });
     };
 
-    const loadData = async () => {
-        setLoading(true);
+    const loadCategories = async () => {
+        setIsLoading(true);
         try {
-            console.log("FiFlow: Iniciando carregamento de categorias e transações...");
+            // Priority 1: Supabase Auth
+            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+
+            if (user) {
+                setUserId(user.id);
+            } else if (storeUser?.id) {
+                setUserId(storeUser.id);
+            }
+
+            const headers: any = {};
+            if (session?.access_token) {
+                headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
+
             const [catsRes, transRes] = await Promise.all([
-                fetch("/api/categories").catch(err => {
-                    console.error("Fetch Categories failed:", err);
-                    return { ok: false, status: 0, text: () => Promise.resolve(err.message) };
-                }),
-                fetch("/api/transactions").catch(err => {
-                    console.error("Fetch Transactions failed:", err);
-                    return { ok: false, status: 0, text: () => Promise.resolve(err.message) };
-                })
+                fetch("/api/categories", { headers }),
+                fetch("/api/transactions", { headers })
             ]);
 
-            const processResponse = async (res: any, name: string) => {
-                const text = await res.text();
-                if (!res.ok) {
-                    console.error(`FiFlow [${name}] API Error (${res.status}):`, text);
-                    return null;
-                }
-                try {
-                    return JSON.parse(text);
-                } catch (e: any) {
-                    console.error(`FiFlow [${name}] JSON Parse Error:`, e.message);
-                    console.log(`FiFlow [${name}] Raw Body:`, text);
-                    return null;
-                }
-            };
+            const catsData = await catsRes.json();
+            const transData = await transRes.json();
 
-            const catsData = await processResponse(catsRes, "Categories");
-            const transData = await processResponse(transRes, "Transactions");
+            let allCategories: Category[] = Array.isArray(catsData) ? catsData : (catsData.categories || []);
+            const allTransactions: Transaction[] = transData.transactions || [];
 
-            setCategories(Array.isArray(catsData) ? catsData : []);
-            setTransactions(Array.isArray(transData?.transactions) ? transData.transactions : []);
+            // FALLBACK: If categories table is empty, derive from transactions
+            if (allCategories.length === 0 && allTransactions.length > 0) {
+                console.log("Categories table empty, deriving from transactions...");
+                const derivedCats: Category[] = [];
+                const rootNames = new Set<string>();
 
-            if (Array.isArray(catsData)) {
-                setExpanded(new Set(catsData.filter((c: any) => !c.parent_id).map((c: any) => c.id)));
+                allTransactions.forEach(t => {
+                    if (t.category && !rootNames.has(t.category)) {
+                        rootNames.add(t.category);
+                        derivedCats.push({
+                            id: `temp-root-${t.category}`,
+                            name: t.category,
+                            type: t.type || 'despesa',
+                            user_id: '',
+                            is_pending: true,
+                            icon: '📁'
+                        } as any);
+                    }
+
+                    if (t.category && t.subcategory) {
+                        const subId = `temp-sub-${t.category}-${t.subcategory}`;
+                        if (!derivedCats.find(c => c.id === subId)) {
+                            derivedCats.push({
+                                id: subId,
+                                name: t.subcategory,
+                                parent_id: `temp-root-${t.category}`,
+                                type: t.type || 'despesa',
+                                user_id: '',
+                                is_pending: true,
+                                icon: '🔹'
+                            } as any);
+                        }
+                    }
+                });
+
+                allCategories = derivedCats;
             }
+
+            // Simple aggregation for the MVP
+            const processedCategories = allCategories.map(cat => {
+                // Find all transactions for this category AND its subcategories
+                const subIds = allCategories
+                    .filter(c => String(c.parent_id) === String(cat.id))
+                    .map(c => c.name);
+
+                const relevantNames = [cat.name, ...subIds];
+
+                const catTrans = allTransactions.filter(t =>
+                    relevantNames.includes(t.category) || (t.subcategory && relevantNames.includes(t.subcategory))
+                );
+
+                const total = catTrans.reduce((sum, t) => sum + (t.amount || 0), 0);
+                const count = catTrans.length;
+
+                return {
+                    ...cat,
+                    total,
+                    transaction_count: count
+                };
+            });
+
+            // Filter out categories with 0 transactions if derived
+            const finalCategories = processedCategories.filter(c => c.transaction_count > 0 || !c.id.toString().startsWith('temp-'));
+
+            setCategories(finalCategories);
         } catch (error) {
-            console.error("FiFlow: Erro crítico ao carregar dados:", error);
-            showToast("Erro ao conectar com o servidor", "error");
+            console.error("Error loading categories:", error);
+            showToast("Erro ao carregar categorias", "error");
         } finally {
-            setLoading(false);
+            setIsLoading(false);
         }
     };
 
-    const toggleExpand = (id: string) => {
-        const next = new Set(expanded);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-        setExpanded(next);
+    const loadTransactions = async (categoryName: string) => {
+        try {
+            const response = await fetch(`/api/transactions?category=${encodeURIComponent(categoryName)}`);
+            const data = await response.json();
+            setTransactions((data.transactions || []).map((t: any) => ({
+                ...t,
+                date: new Date(t.date),
+            })));
+        } catch (error) {
+            console.error("Error loading transactions:", error);
+        }
     };
 
-    const handleAddCategory = async (parentId?: string | null, nameOverride?: string, idToApprove?: string) => {
-        const name = nameOverride || newCatName;
-        if (!name.trim()) return;
+    const handleCreateCategory = async () => {
+        if (!newCategoryName.trim()) return;
 
         try {
-            if (idToApprove) {
-                // If we are approving an existing phantom category
-                const response = await fetch(`/api/categories/${idToApprove}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ is_pending: false })
-                });
-                if (response.ok) {
-                    loadData();
-                    showToast(`Categoria "${name}" aprovada!`);
+            const { data: { session } } = await supabase.auth.getSession();
+            const { data: { user } } = await supabase.auth.getUser();
+
+            // Check session, store and state
+            const currentUserId = user?.id || storeUser?.id || userId;
+
+            if (!currentUserId) {
+                console.warn("No user ID found during category creation. Attempting to get session...");
+                if (session?.user?.id) {
+                    setUserId(session.user.id);
+                } else {
+                    showToast("Usuário não identificado. Tente recarregar a página.", "error");
+                    return;
                 }
-                return;
+            }
+
+            const finalUserId = currentUserId || session?.user?.id;
+
+            // Cleanup parent_id if it's a temp ID
+            let parentId = selectedCategory?.id;
+            if (parentId && String(parentId).startsWith('temp-')) {
+                parentId = undefined;
             }
 
             const response = await fetch("/api/categories", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": session?.access_token ? `Bearer ${session.access_token}` : ""
+                },
                 body: JSON.stringify({
-                    name: name,
-                    type: newCatType,
-                    parent_id: parentId,
-                    color: "#94A3B8",
-                    icon: parentId ? "🔹" : "📁",
-                    is_pending: false
-                })
+                    name: newCategoryName.trim(),
+                    type: 'despesa',
+                    icon: '📁',
+                    is_pending: false,
+                    user_id: finalUserId,
+                    parent_id: parentId
+                }),
             });
+
             if (response.ok) {
-                setNewCatName("");
-                loadData();
-                showToast(`Categoria "${name}" criada com sucesso!`);
+                setNewCategoryName("");
+                setIsCreating(false);
+                loadCategories();
+                showToast("Categoria criada!");
+            } else {
+                const errorData = await response.json();
+                console.error("API Error Creating Category:", errorData);
+                showToast(errorData.error || errorData.details || "Erro ao criar categoria", "error");
             }
         } catch (error) {
-            console.error("Error adding/approving category:", error);
-            showToast("Erro ao processar categoria", "error");
+            console.error("Error creating category:", error);
+            showToast("Erro ao criar categoria", "error");
         }
     };
 
-    const handleUpdateCategory = async (id: string) => {
-        if (!editingName.trim()) return;
+    const handleUpdateCategory = async () => {
+        if (!editingCategory || !editCategoryName.trim()) return;
+
         try {
-            const response = await fetch(`/api/categories/${id}`, {
+            const { data: { session } } = await supabase.auth.getSession();
+            const response = await fetch(`/api/categories/${editingCategory.id}`, {
                 method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: editingName })
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": session?.access_token ? `Bearer ${session.access_token}` : ""
+                },
+                body: JSON.stringify({
+                    name: editCategoryName.trim(),
+                    color: editingCategory.color,
+                    icon: editingCategory.icon,
+                }),
             });
+
             if (response.ok) {
-                setEditingId(null);
-                loadData();
+                setEditingCategory(null);
+                setEditCategoryName("");
+                loadCategories();
                 showToast("Categoria atualizada!");
+                if (selectedCategory?.id === editingCategory.id) {
+                    setSelectedCategory(null);
+                }
+            } else {
+                const error = await response.json();
+                showToast(error.error || "Erro ao atualizar categoria", "error");
             }
         } catch (error) {
             console.error("Error updating category:", error);
@@ -193,999 +284,628 @@ export default function Categories() {
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm("Tem certeza que deseja excluir esta categoria? Subcategorias também serão excluídas.")) return;
+    const handleApproveCategory = async (id: string) => {
         try {
-            await fetch(`/api/categories/${id}`, { method: "DELETE" });
-            loadData();
-            showToast("Categoria excluída");
+            const isTemp = id.startsWith('temp-');
+            const categoryToApprove = categories.find(c => c.id === id);
+
+            if (isTemp && categoryToApprove) {
+                // If it's a virtual category from transactions, we create it in the DB
+                const { data: { session } } = await supabase.auth.getSession();
+                const response = await fetch("/api/categories", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": session?.access_token ? `Bearer ${session.access_token}` : ""
+                    },
+                    body: JSON.stringify({
+                        name: categoryToApprove.name,
+                        type: categoryToApprove.type || 'despesa',
+                        parent_id: (categoryToApprove.parent_id && !String(categoryToApprove.parent_id).startsWith('temp-')) ? categoryToApprove.parent_id : null,
+                        is_pending: false,
+                        icon: categoryToApprove.icon || '📁',
+                        user_id: user?.id || userId
+                    }),
+                });
+
+                if (response.ok) {
+                    loadCategories();
+                    showToast("Categoria sincronizada com o banco!");
+                } else {
+                    const err = await response.json();
+                    showToast(err.details || "Erro ao sincronizar categoria", "error");
+                }
+                return;
+            }
+
+            const response = await fetch(`/api/categories/${id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ is_pending: false }),
+            });
+
+            if (response.ok) {
+                loadCategories();
+                showToast("Categoria aprovada!");
+            } else {
+                showToast("Erro ao aprovar categoria", "error");
+            }
+        } catch (error) {
+            console.error("Error approving category:", error);
+            showToast("Erro ao aprovar categoria", "error");
+        }
+    };
+
+    const handleDeleteCategory = async (category: Category) => {
+        if (!confirm(`Tem certeza que deseja excluir a categoria "${category.name}"? Todas as transações perderão esta categoria.`)) {
+            return;
+        }
+
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const response = await fetch(`/api/categories/${category.id}`, {
+                method: "DELETE",
+                headers: {
+                    "Authorization": session?.access_token ? `Bearer ${session.access_token}` : ""
+                }
+            });
+
+            if (response.ok) {
+                loadCategories();
+                showToast("Categoria excluída");
+                if (selectedCategory?.id === (category.id as any)) {
+                    setSelectedCategory(null);
+                }
+            } else {
+                showToast("Erro ao excluir categoria", "error");
+            }
         } catch (error) {
             console.error("Error deleting category:", error);
             showToast("Erro ao excluir categoria", "error");
         }
     };
 
-    const handleQuickMove = async (transactionIds: string[], targetCategory: Category) => {
+    const handleReclassify = async (transactionIds: string[], newCategory: Category) => {
         try {
-            let category = targetCategory.name;
-            let subcategory = "";
-
-            if (targetCategory.parent_id) {
-                const parent = categories.find(c => c.id === targetCategory.parent_id);
-                if (parent) {
-                    category = parent.name;
-                    subcategory = targetCategory.name;
-                }
-            }
-
+            showToast(`Reclassificando ${transactionIds.length} itens...`);
             await Promise.all(transactionIds.map(id =>
                 fetch(`/api/transactions/${id}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        category,
-                        subcategory,
-                        type: targetCategory.type
+                        category: newCategory.name,
+                        type: newCategory.type || 'despesa'
                     }),
                 })
             ));
 
-            setSelectedIds(new Set());
-            setShowMoveModal(false);
-            loadData();
-            showToast(`${transactionIds.length} lançamento(s) movido(s) com sucesso!`);
-        } catch (err) {
-            console.error('Error moving transactions:', err);
-            showToast("Erro ao mover lançamentos", "error");
-        }
-    };
-
-    const toggleSelect = (id: string) => {
-        const next = new Set(selectedIds);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-        setSelectedIds(next);
-    };
-
-    const toggleSelectAll = (transactions: Transaction[]) => {
-        const ids = transactions.map(t => t.id!);
-        const allSelected = ids.every(id => selectedIds.has(id));
-
-        const next = new Set(selectedIds);
-        if (allSelected) {
-            ids.forEach(id => next.delete(id));
-        } else {
-            ids.forEach(id => next.add(id));
-        }
-        setSelectedIds(next);
-    };
-
-    const seedDefaults = async () => {
-        if (!confirm("Deseja importar as categorias padrão?")) return;
-        setLoading(true);
-        try {
-            for (const cat of DEFAULT_CATEGORIES) {
-                await fetch("/api/categories", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ ...cat, is_pending: false })
-                });
+            setSelectedTransactions(new Set());
+            loadCategories();
+            showToast("Reclassificação concluída!");
+            if (selectedCategory) {
+                loadTransactions(selectedCategory.name);
             }
-            loadData();
-            showToast("Categorias padrão importadas!");
         } catch (error) {
-            console.error("Error seeding:", error);
-            showToast("Erro ao importar categorias", "error");
-        } finally {
-            setLoading(false);
+            console.error("Error reclassifying transactions:", error);
+            showToast("Erro ao reclassificar transações", "error");
         }
     };
 
-    const transByCatName = useMemo(() => {
-        const groups: Record<string, Transaction[]> = {};
-        transactions.forEach(t => {
-            const cat = t.category || "Sem Categoria";
-            if (!groups[cat]) groups[cat] = [];
-            groups[cat].push(t);
-        });
-        return groups;
-    }, [transactions]);
-
-    const unifiedTree = useMemo(() => {
-        const map: Record<string, any> = {};
-        const roots: any[] = [];
-
-        // Only show official (is_pending: false) categories in the tree
-        const officialCats = categories.filter(c => !c.is_pending);
-
-        officialCats.forEach(cat => {
-            map[cat.id] = {
-                ...cat,
-                children: [],
-                transactions: transByCatName[cat.name] || []
-            };
-        });
-
-        officialCats.forEach(cat => {
-            if (cat.parent_id && map[cat.parent_id]) {
-                map[cat.parent_id].children.push(map[cat.id]);
-            } else if (!cat.parent_id) {
-                roots.push(map[cat.id]);
-            }
-        });
-
-        return roots;
-    }, [categories, transByCatName]);
-
-    const phantomCategories = useMemo(() => {
-        const phantoms: any[] = [];
-
-        // 1. Phantoms from is_pending: true categories in DB
-        categories.filter(c => c.is_pending).forEach(cat => {
-            const trans = transByCatName[cat.name] || [];
-            phantoms.push({
-                ...cat,
-                isPhantom: true,
-                transactions: trans,
-                count: trans.length,
-                total: trans.reduce((sum, t) => sum + t.amount, 0)
-            });
-        });
-
-        // 2. Legacy check: Phantoms from transactions with no official category
-        const officialNames = new Set(categories.filter(c => !c.is_pending).map(c => c.name));
-        const pendingNamesInDb = new Set(categories.filter(c => c.is_pending).map(c => c.name));
-
-        Object.keys(transByCatName).forEach(catName => {
-            if (!officialNames.has(catName) && !pendingNamesInDb.has(catName) && catName !== "Sem Categoria") {
-                const trans = transByCatName[catName];
-                phantoms.push({
-                    id: `phantom-${catName}`,
-                    name: catName,
-                    type: trans[0]?.type || 'despesa',
-                    isOfficial: false,
-                    isPhantom: true,
-                    icon: "🤖",
-                    transactions: trans,
-                    count: trans.length,
-                    total: trans.reduce((sum, t) => sum + t.amount, 0)
-                });
-            }
-        });
-
-        if (transByCatName["Sem Categoria"]) {
-            const trans = transByCatName["Sem Categoria"];
-            phantoms.push({
-                id: `phantom-uncategorized`,
-                name: "Sem Categoria",
-                type: 'despesa',
-                isOfficial: false,
-                isPhantom: true,
-                icon: "❓",
-                transactions: trans,
-                count: trans.length,
-                total: trans.reduce((sum, t) => sum + t.amount, 0)
-            });
+    const toggleTransactionSelection = (id: string) => {
+        const newSelected = new Set(selectedTransactions);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
         }
+        setSelectedTransactions(newSelected);
+    };
 
-        return phantoms;
-    }, [categories, transByCatName]);
+    const formatBRL = (value: number) => {
+        return new Intl.NumberFormat("pt-BR", {
+            style: "currency",
+            currency: "BRL",
+        }).format(value);
+    };
 
-    const filteredTree = useMemo(() => {
-        if (!searchTerm) return unifiedTree;
-        const lowerSearch = searchTerm.toLowerCase();
+    // Hierarchy Logic
+    const rootCategories = useMemo(() => {
+        return categories.filter(c => !c.parent_id);
+    }, [categories]);
 
-        const filterNode = (node: any): any => {
-            const nameMatch = node.name.toLowerCase().includes(lowerSearch);
-            const filteredChildren = node.children.map(filterNode).filter((c: any) => c !== null);
-            const hasMatchingTransaction = node.transactions.some((t: Transaction) =>
-                t.description.toLowerCase().includes(lowerSearch)
-            );
+    const getSubcategories = (parentId: string) => {
+        return categories.filter(c => String(c.parent_id) === String(parentId));
+    };
 
-            if (nameMatch || filteredChildren.length > 0 || hasMatchingTransaction) {
-                return { ...node, children: filteredChildren };
-            }
-            return null;
-        };
+    const filteredTransactions = transactions.filter((t) =>
+        t.description.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
-        return unifiedTree.map(filterNode).filter(n => n !== null);
-    }, [unifiedTree, searchTerm]);
+    if (isLoading && categories.length === 0) {
+        return (
+            <DashboardLayout>
+                <div className="flex flex-col items-center justify-center py-40 gap-6 animate-in fade-in duration-700">
+                    <div className="w-16 h-16 border-4 border-slate-100 border-t-indigo-600 rounded-full animate-spin shadow-xl" />
+                    <div className="text-center">
+                        <p className="text-xl font-black text-slate-900 tracking-tight">Sincronizando Estrutura</p>
+                        <p className="text-slate-400 font-bold text-sm mt-1">Carregando suas categorias inteligentes...</p>
+                    </div>
+                </div>
+            </DashboardLayout>
+        );
+    }
 
     return (
         <DashboardLayout>
-            <div className="flex flex-col gap-6 pb-32">
+            <div className="flex flex-col gap-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-700">
                 {/* Header */}
-                <header className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+                <header className="flex flex-col md:flex-row items-center justify-between gap-6">
                     <div>
-                        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-2">
-                            Gestão de Categorias
-                        </h1>
-                        <p className="text-slate-500 font-medium">
-                            Organize sua estrutura de categorização e mantenha seus dados limpos
+                        <div className="flex items-center gap-3 mb-2">
+                            {selectedCategory && (
+                                <button
+                                    onClick={() => setSelectedCategory(null)}
+                                    className="p-3 bg-white border border-slate-100 rounded-2xl hover:border-indigo-600 hover:text-indigo-600 shadow-sm transition-all active:scale-95 group"
+                                    title="Voltar para Categorias"
+                                >
+                                    <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                                </button>
+                            )}
+                            <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
+                                {selectedCategory ? selectedCategory.name : "Lançamentos e Categorias"}
+                            </h1>
+                        </div>
+                        <p className={`text-slate-500 font-medium ${selectedCategory ? 'ml-14' : 'ml-1'}`}>
+                            {selectedCategory
+                                ? `${selectedCategory.transaction_count} lançamentos vinculados nesta categoria`
+                                : "Organize e gerencie sua estrutura financeira de forma inteligente"}
                         </p>
                     </div>
 
-                    {/* View Mode Selector */}
-                    <div className="flex bg-white rounded-2xl shadow-sm border border-slate-200 p-1.5 gap-1">
+                    {!selectedCategory && (
                         <button
-                            onClick={() => setViewMode('tree')}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${viewMode === 'tree'
-                                ? 'bg-indigo-600 text-white shadow-lg'
-                                : 'text-slate-500 hover:text-slate-700'
-                                }`}
+                            onClick={() => setIsCreating(true)}
+                            className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[1.5rem] font-black text-sm shadow-xl shadow-indigo-100 hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-3"
                         >
-                            <Layers className="w-4 h-4" />
-                            Estrutura
+                            <Plus className="w-5 h-5" />
+                            Nova Categoria
                         </button>
-                        <button
-                            onClick={() => setViewMode('phantom')}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all relative ${viewMode === 'phantom'
-                                ? 'bg-amber-600 text-white shadow-lg'
-                                : 'text-slate-500 hover:text-slate-700'
-                                }`}
-                        >
-                            <Zap className="w-4 h-4" />
-                            Pendências
-                            {phantomCategories.length > 0 && (
-                                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center">
-                                    {phantomCategories.length}
-                                </span>
-                            )}
-                        </button>
-                    </div>
+                    )}
                 </header>
 
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-                    {/* Main Content */}
-                    <div className="lg:col-span-3 space-y-4">
-                        {/* Search Bar */}
-                        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6">
-                            <div className="relative">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                                <input
-                                    type="text"
-                                    placeholder="Pesquisar categorias e lançamentos..."
-                                    className="w-full pl-12 pr-4 py-4 rounded-2xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/5 outline-none text-sm transition-all font-medium"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
+                {/* Main Content Area */}
+                {!selectedCategory ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {rootCategories.map((category) => {
+                            const subCount = getSubcategories(String(category.id)).length;
+                            return (
+                                <div
+                                    key={category.id}
+                                    className="group bg-white rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-indigo-50/50 hover:border-indigo-100 transition-all duration-500 overflow-hidden flex flex-col h-full"
+                                >
+                                    <div className="p-5 flex-1 flex flex-col min-w-0">
+                                        <div className="flex flex-col gap-5 flex-1 min-w-0">
+                                            <div className="flex items-start justify-between gap-2 min-w-0">
+                                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                                    <div className="shrink-0 w-9 h-9 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shadow-inner group-hover:scale-110 transition-transform">
+                                                        <Sparkles className="w-4.5 h-4.5" />
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-center gap-1.5 min-w-0">
+                                                            <h3 className="text-base font-black text-slate-900 tracking-tight leading-none group-hover:text-indigo-600 transition-colors truncate">
+                                                                {category.name}
+                                                            </h3>
+                                                            {category.is_pending && (
+                                                                <span className="shrink-0 text-[8px] font-black bg-amber-500 text-white px-1.5 py-0.5 rounded-md uppercase tracking-tighter">IA</span>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-wider truncate">
+                                                            {category.transaction_count} itens • {subCount} subs
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-0.5 shrink-0">
+                                                    {category.is_pending && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleApproveCategory(String(category.id));
+                                                            }}
+                                                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                                                            title="Aprovar Categoria"
+                                                        >
+                                                            <Check className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setEditingCategory(category);
+                                                            setEditCategoryName(category.name);
+                                                        }}
+                                                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                                    >
+                                                        <Edit2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDeleteCategory(category);
+                                                        }}
+                                                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 group-hover:bg-indigo-50/50 transition-colors mt-auto">
+                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total Acumulado</p>
+                                                <p className="text-xl font-black text-slate-900 tracking-tight">
+                                                    {formatBRL(category.total || 0)}
+                                                </p>
+                                            </div>
+
+                                            <button
+                                                onClick={() => setSelectedCategory(category)}
+                                                className="w-full flex items-center justify-center gap-2 py-3 bg-slate-900 hover:bg-black text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-lg shadow-slate-200 hover:scale-[1.02] active:scale-95 transition-all"
+                                            >
+                                                Ver Detalhes
+                                                <ChevronRight className="w-3 h-3" />
+                                            </button>
+                                        </div>
+
+                                        {category.is_pending && (
+                                            <div className="px-6 py-4 bg-amber-50/30 flex items-center justify-between border-t border-amber-50">
+                                                <div className="flex items-center gap-2">
+                                                    <Sparkles className="w-3 h-3 text-amber-600" />
+                                                    <span className="text-[9px] font-bold text-amber-800">Criada pela IA</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {/* Empty State */}
+                        {rootCategories.length === 0 && (
+                            <div className="col-span-full py-32 flex flex-col items-center justify-center bg-slate-50 rounded-[3rem] border-4 border-dashed border-slate-200">
+                                <Layers className="w-16 h-16 text-slate-200 mb-6" />
+                                <h3 className="text-2xl font-black text-slate-400 mb-2">Estrutura Vazia</h3>
+                                <p className="text-slate-400 font-bold max-w-xs text-center leading-relaxed">Comece criando sua primeira categoria ou importe dados para ver a inteligência em ação.</p>
+                                <button
+                                    onClick={() => setIsCreating(true)}
+                                    className="mt-8 px-8 py-4 bg-white border-2 border-slate-200 text-slate-900 rounded-2xl font-black text-sm hover:border-indigo-600 transition-all flex items-center gap-2"
+                                >
+                                    <Plus className="w-5 h-5" /> Criar Categoria
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    /* Transaction Details + Subcategories View */
+                    <div className="space-y-8 animate-in slide-in-from-right-8 duration-500">
+                        {/* Subcategories Shelf */}
+                        <div className="flex flex-col gap-4">
+                            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4">Subcategorias de {selectedCategory.name}</h2>
+                            <div className="flex flex-wrap gap-4">
+                                {getSubcategories(String(selectedCategory.id)).map(sub => (
+                                    <div
+                                        key={sub.id}
+                                        className="bg-white px-6 py-4 rounded-2xl border border-slate-100 shadow-sm hover:border-indigo-400 transition-all group flex items-center gap-4"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-lg">{sub.icon || "🔹"}</span>
+                                            <span className="font-black text-slate-900 text-sm">{sub.name}</span>
+                                            {sub.is_pending && (
+                                                <span className="text-[7px] font-black bg-amber-500 text-white px-1.5 py-0.5 rounded-sm uppercase tracking-tighter">IA</span>
+                                            )}
+                                        </div>
+                                        <div className="h-4 w-px bg-slate-100" />
+                                        <span className="text-[10px] font-black text-slate-400">{sub.transaction_count} lançamentos</span>
+                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity translate-x-1">
+                                            {sub.is_pending && (
+                                                <button onClick={() => handleApproveCategory(String(sub.id))} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg">
+                                                    <Check className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
+                                            <button onClick={() => handleDeleteCategory(sub)} className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg">
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                                <button
+                                    onClick={() => {
+                                        setNewCategoryName("");
+                                        setIsCreating(true);
+                                        // Potential future: auto-set parentId in state
+                                    }}
+                                    className="px-6 py-4 bg-slate-50 border border-dashed border-slate-200 text-slate-400 rounded-2xl font-black text-xs hover:border-indigo-600 hover:text-indigo-600 transition-all flex items-center gap-2"
+                                >
+                                    <Plus className="w-4 h-4" /> Nova Sub
+                                </button>
                             </div>
                         </div>
 
-                        {/* Content based on view mode */}
-                        {viewMode === 'tree' && (
-                            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-                                <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                                    <div className="flex items-center gap-3">
-                                        <Folder className="w-5 h-5 text-indigo-600" />
-                                        <h2 className="font-bold text-slate-900">Estrutura de Categorias</h2>
-                                    </div>
-                                    <button
-                                        onClick={seedDefaults}
-                                        className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-sm font-bold transition-all"
-                                    >
-                                        <RefreshCw className="w-4 h-4" />
-                                        Importar Padrões
-                                    </button>
-                                </div>
-
-                                <div className="p-6">
-                                    {loading ? (
-                                        <div className="flex flex-col items-center justify-center py-20 gap-4">
-                                            <div className="relative">
-                                                <div className="w-16 h-16 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
-                                            </div>
-                                            <p className="text-slate-400 font-medium text-sm">Carregando estrutura...</p>
-                                        </div>
-                                    ) : filteredTree.length === 0 ? (
-                                        <div className="flex flex-col items-center justify-center py-20 gap-4">
-                                            <FolderOpen className="w-16 h-16 text-slate-300" />
-                                            <p className="text-slate-400 font-medium">Nenhuma categoria encontrada</p>
-                                            <button
-                                                onClick={seedDefaults}
-                                                className="mt-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all"
-                                            >
-                                                Criar Categorias Padrão
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-2">
-                                            {filteredTree.map(node => (
-                                                <TreeNode
-                                                    key={node.id}
-                                                    node={node}
-                                                    expanded={expanded}
-                                                    toggleExpand={toggleExpand}
-                                                    onDelete={handleDelete}
-                                                    loadData={loadData}
-                                                    officialCategories={categories}
-                                                    onQuickMove={handleQuickMove}
-                                                    selectedIds={selectedIds}
-                                                    toggleSelect={toggleSelect}
-                                                    toggleSelectAll={toggleSelectAll}
-                                                    editingId={editingId}
-                                                    setEditingId={setEditingId}
-                                                    editingName={editingName}
-                                                    setEditingName={setEditingName}
-                                                    onUpdateName={handleUpdateCategory}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                        {viewMode === 'phantom' && (
-                            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-                                <div className="p-6 border-b border-slate-100 bg-amber-50/50">
-                                    <div className="flex items-start gap-4">
-                                        <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center shrink-0">
-                                            <Zap className="w-6 h-6 text-amber-600" />
-                                        </div>
-                                        <div className="flex-1">
-                                            <h2 className="font-bold text-slate-900 mb-1">Categorias Pendentes</h2>
-                                            <p className="text-sm text-slate-600">
-                                                Estas categorias foram criadas automaticamente pela IA mas ainda não foram oficializadas.
-                                                Revise e aprove para manter sua estrutura organizada.
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="p-6">
-                                    {phantomCategories.length === 0 ? (
-                                        <div className="flex flex-col items-center justify-center py-20 gap-4">
-                                            <CheckCircle2 className="w-16 h-16 text-emerald-500" />
-                                            <p className="text-slate-600 font-medium">Tudo em ordem!</p>
-                                            <p className="text-sm text-slate-400">Não há categorias pendentes no momento</p>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-3">
-                                            {phantomCategories.map(phantom => (
-                                                <PhantomCategoryCard
-                                                    key={phantom.id}
-                                                    phantom={phantom}
-                                                    onApprove={() => handleAddCategory(null, phantom.name, phantom.id)}
-                                                    onQuickMove={handleQuickMove}
-                                                    officialCategories={categories}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Sidebar - Quick Creation */}
-                    <div className="lg:col-span-1 space-y-4 sticky top-6">
-                        <div className="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-3xl shadow-xl p-6 text-white">
-                            <h3 className="font-bold text-sm uppercase tracking-wider opacity-90 mb-6">
-                                Nova Categoria
-                            </h3>
-
-                            <div className="space-y-5">
-                                <div>
-                                    <label className="text-xs font-bold opacity-75 mb-2 block">Nome</label>
+                        {/* Controls Panel */}
+                        <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 p-8">
+                            <div className="flex flex-col lg:flex-row items-center gap-6 justify-between">
+                                <div className="relative flex-1 w-full">
+                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                                     <input
                                         type="text"
-                                        placeholder="Ex: Contas Domésticas"
-                                        className="w-full px-4 py-3 bg-white/10 border border-white/20 focus:border-white/40 rounded-xl outline-none transition-all placeholder:text-white/40 font-medium text-white backdrop-blur-sm"
-                                        value={newCatName}
-                                        onChange={(e) => setNewCatName(e.target.value)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleAddCategory(null)}
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        placeholder="Buscar lançamentos..."
+                                        className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold focus:border-indigo-500 outline-none transition-all text-sm"
                                     />
                                 </div>
 
-                                <div>
-                                    <label className="text-xs font-bold opacity-75 mb-3 block">Tipo</label>
-                                    <div className="grid grid-cols-2 gap-2 p-1 bg-white/10 rounded-xl">
-                                        <button
-                                            onClick={() => setNewCatType('despesa')}
-                                            className={`py-2.5 text-xs font-bold rounded-lg transition-all ${newCatType === 'despesa'
-                                                ? 'bg-white text-rose-600 shadow-lg'
-                                                : 'text-white/60 hover:text-white/90'
-                                                }`}
+                                {selectedTransactions.size > 0 && (
+                                    <div className="flex flex-col sm:flex-row items-center gap-4 bg-indigo-50 p-3 pr-6 rounded-[1.5rem] border border-indigo-100 animate-in fade-in zoom-in duration-300 w-full lg:w-auto">
+                                        <div className="flex items-center gap-3 px-4">
+                                            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-100">
+                                                <Layers className="w-4 h-4 text-white" />
+                                            </div>
+                                            <span className="text-sm font-black text-indigo-900 whitespace-nowrap">
+                                                {selectedTransactions.size} selecionados
+                                            </span>
+                                        </div>
+                                        <div className="h-6 w-px bg-indigo-200 hidden sm:block" />
+                                        <select
+                                            onChange={(e) => {
+                                                const catId = e.target.value;
+                                                const cat = categories.find(c => String(c.id) === catId);
+                                                if (cat) {
+                                                    handleReclassify(Array.from(selectedTransactions), cat);
+                                                    e.target.value = "";
+                                                }
+                                            }}
+                                            className="w-full sm:w-auto px-6 py-2 bg-white border border-indigo-200 rounded-xl text-xs font-black uppercase tracking-widest text-indigo-600 focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
                                         >
-                                            Despesa
-                                        </button>
-                                        <button
-                                            onClick={() => setNewCatType('receita')}
-                                            className={`py-2.5 text-xs font-bold rounded-lg transition-all ${newCatType === 'receita'
-                                                ? 'bg-white text-emerald-600 shadow-lg'
-                                                : 'text-white/60 hover:text-white/90'
-                                                }`}
-                                        >
-                                            Receita
-                                        </button>
+                                            <option value="">RECLASSIFICAR PARA...</option>
+                                            {categories
+                                                .filter((c) => c.id !== selectedCategory.id)
+                                                .map((c) => (
+                                                    <option key={c.id} value={String(c.id)}>
+                                                        {c.parent_id ? `└ ${c.name}` : c.name}
+                                                    </option>
+                                                ))}
+                                        </select>
                                     </div>
-                                </div>
-
-                                <button
-                                    onClick={() => handleAddCategory(null)}
-                                    disabled={!newCatName.trim()}
-                                    className="w-full py-4 bg-white text-indigo-600 font-bold rounded-xl shadow-lg hover:shadow-xl active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                                >
-                                    <Plus className="w-5 h-5" />
-                                    Criar Categoria
-                                </button>
+                                )}
                             </div>
                         </div>
 
-                        {/* Info Card */}
-                        <div className="p-5 bg-blue-50 rounded-2xl border border-blue-100">
-                            <div className="flex gap-3">
-                                <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
-                                <div>
-                                    <p className="text-xs font-bold text-blue-900 mb-1">Dica</p>
-                                    <p className="text-xs text-blue-700 leading-relaxed">
-                                        Clique no ícone de lápis para editar o nome de uma categoria,
-                                        ou no (+) para adicionar subcategorias.
+                        {/* List Wrapper */}
+                        <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden">
+                            <div className="overflow-x-auto overflow-y-hidden">
+                                <table className="min-w-full divide-y divide-slate-100">
+                                    <thead className="bg-slate-50/50">
+                                        <tr>
+                                            <th className="px-8 py-5 text-left w-10">
+                                                <button
+                                                    onClick={() => {
+                                                        if (selectedTransactions.size === filteredTransactions.length) {
+                                                            setSelectedTransactions(new Set());
+                                                        } else {
+                                                            setSelectedTransactions(new Set(filteredTransactions.map(t => String(t.id))));
+                                                        }
+                                                    }}
+                                                    className={`w-6 h-6 rounded-lg flex items-center justify-center border-2 transition-all ${selectedTransactions.size === filteredTransactions.length && filteredTransactions.length > 0
+                                                        ? 'bg-indigo-600 border-indigo-600 text-white'
+                                                        : 'bg-white border-slate-200 text-transparent'
+                                                        }`}
+                                                >
+                                                    <CheckCircle2 className="w-4 h-4" />
+                                                </button>
+                                            </th>
+                                            <th className="px-4 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Data</th>
+                                            <th className="px-4 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Descrição</th>
+                                            <th className="px-4 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor</th>
+                                            <th className="px-4 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">Subcategoria</th>
+                                            <th className="px-8 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">Ações Rápidas</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-slate-50">
+                                        {filteredTransactions.map((transaction) => (
+                                            <tr key={transaction.id} className="hover:bg-slate-50/80 transition-colors group">
+                                                <td className="px-8 py-5">
+                                                    <button
+                                                        onClick={() => toggleTransactionSelection(String(transaction.id))}
+                                                        className={`w-6 h-6 rounded-lg flex items-center justify-center border-2 transition-all ${selectedTransactions.has(String(transaction.id))
+                                                            ? 'bg-indigo-600 border-indigo-600 text-white'
+                                                            : 'bg-white border-slate-200 text-transparent group-hover:border-indigo-300'
+                                                            }`}
+                                                    >
+                                                        <CheckCircle2 className="w-4 h-4" />
+                                                    </button>
+                                                </td>
+                                                <td className="px-4 py-5 whitespace-nowrap font-bold text-slate-500 text-sm">
+                                                    {transaction.date.toLocaleDateString("pt-BR")}
+                                                </td>
+                                                <td className="px-4 py-5">
+                                                    <p className="font-black text-slate-900 text-sm mb-0.5">{transaction.description}</p>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{selectedCategory.name}</p>
+                                                </td>
+                                                <td className="px-4 py-5 text-right">
+                                                    <span className={`text-sm font-black tracking-tight ${transaction.type === "receita" ? "text-emerald-600" : "text-rose-600"
+                                                        }`}>
+                                                        {transaction.type === "receita" ? "+" : "-"} {formatBRL(transaction.amount)}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-5">
+                                                    <span className="text-xs font-bold text-slate-500 italic">
+                                                        {transaction.subcategory || "-"}
+                                                    </span>
+                                                </td>
+                                                <td className="px-8 py-5 text-center">
+                                                    <select
+                                                        onChange={(e) => {
+                                                            const catId = e.target.value;
+                                                            const cat = categories.find(c => String(c.id) === catId);
+                                                            if (cat) {
+                                                                handleReclassify([String(transaction.id)], cat);
+                                                                e.target.value = "";
+                                                            }
+                                                        }}
+                                                        className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:border-indigo-600 hover:text-indigo-600 transition-all cursor-pointer outline-none"
+                                                    >
+                                                        <option value="">MOVER PARA</option>
+                                                        {categories
+                                                            .filter((c) => c.id !== selectedCategory.id)
+                                                            .map((c) => (
+                                                                <option key={c.id} value={String(c.id)}>
+                                                                    {c.parent_id ? `└ ${c.name}` : c.name}
+                                                                </option>
+                                                            ))}
+                                                    </select>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {filteredTransactions.length === 0 && (
+                                <div className="text-center py-20 bg-slate-50/50">
+                                    <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl text-slate-200">
+                                        <Search className="w-8 h-8" />
+                                    </div>
+                                    <p className="text-slate-400 font-bold">
+                                        {searchTerm
+                                            ? "Nenhum lançamento encontrado para sua busca"
+                                            : "Nenhum lançamento vinculado a esta categoria"}
                                     </p>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Floating Action Bar for Selection */}
-                {selectedIds.size > 0 && (
-                    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 fade-in duration-200">
-                        <div className="bg-slate-900 text-white rounded-full shadow-2xl px-6 py-4 flex items-center gap-6 border border-white/10">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center font-bold">
-                                    {selectedIds.size}
-                                </div>
-                                <span className="text-sm font-medium">
-                                    {selectedIds.size === 1 ? 'lançamento' : 'lançamentos'} selecionado{selectedIds.size > 1 ? 's' : ''}
-                                </span>
-                            </div>
-
-                            <div className="h-8 w-px bg-white/20" />
-
-                            <button
-                                onClick={() => setShowMoveModal(true)}
-                                className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-full font-bold text-sm transition-all"
-                            >
-                                <Move className="w-4 h-4" />
-                                Mover
-                            </button>
-
-                            <button
-                                onClick={() => setSelectedIds(new Set())}
-                                className="p-2 hover:bg-white/10 rounded-full transition-colors"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
+                            )}
                         </div>
                     </div>
                 )}
 
-                {/* Move Modal */}
-                {showMoveModal && (
-                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowMoveModal(false)}>
-                        <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-between mb-6">
-                                <h3 className="text-xl font-bold text-slate-900">Mover para categoria</h3>
-                                <button onClick={() => setShowMoveModal(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
-                                    <X className="w-5 h-5" />
+                {/* Create Category Modal */}
+                {isCreating && (
+                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-6 animate-in fade-in duration-300">
+                        <div className="bg-white rounded-[3rem] shadow-2xl max-w-lg w-full p-10 overflow-hidden relative">
+                            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 to-purple-600" />
+                            <div className="flex items-center justify-between mb-8">
+                                <h2 className="text-2xl font-black text-gray-900 tracking-tight">Nova Categoria</h2>
+                                <button
+                                    onClick={() => {
+                                        setIsCreating(false);
+                                        setNewCategoryName("");
+                                    }}
+                                    className="p-3 hover:bg-slate-100 rounded-2xl transition-all"
+                                >
+                                    <X className="w-6 h-6 text-slate-400" />
                                 </button>
                             </div>
 
-                            <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar">
-                                {categories.map((cat: Category) => (
+                            <div className="space-y-6">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Nome da Categoria</label>
+                                    <input
+                                        autoFocus
+                                        type="text"
+                                        value={newCategoryName}
+                                        onChange={(e) => setNewCategoryName(e.target.value)}
+                                        placeholder="Ex: Assinaturas de Streaming"
+                                        className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold focus:border-indigo-500 outline-none transition-all"
+                                        onKeyDown={(e) => e.key === "Enter" && handleCreateCategory()}
+                                    />
+                                </div>
+
+                                <div className="flex gap-3 pt-4">
                                     <button
-                                        key={cat.id}
-                                        onClick={() => handleQuickMove(Array.from(selectedIds), cat)}
-                                        className={`w-full text-left p-4 rounded-2xl border-2 hover:border-indigo-300 hover:bg-indigo-50 transition-all flex items-center gap-4 ${cat.parent_id ? 'ml-6 border-slate-100' : 'border-slate-200'
-                                            }`}
+                                        onClick={() => {
+                                            setIsCreating(false);
+                                            setNewCategoryName("");
+                                        }}
+                                        className="flex-1 py-4 text-slate-400 font-black text-sm hover:bg-slate-50 rounded-2xl transition-all uppercase tracking-widest"
                                     >
-                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl ${cat.type === 'receita' ? 'bg-emerald-50' : 'bg-rose-50'
-                                            }`}>
-                                            {cat.icon || '📁'}
-                                        </div>
-                                        <div className="flex-1">
-                                            <p className="font-bold text-slate-900">{cat.name}</p>
-                                            <p className={`text-xs font-medium mt-0.5 ${cat.type === 'receita' ? 'text-emerald-600' : 'text-rose-600'
-                                                }`}>
-                                                {cat.type === 'receita' ? 'Receita' : 'Despesa'}
-                                                {cat.parent_id && ' • Subcategoria'}
-                                            </p>
-                                        </div>
-                                        <ChevronRight className="w-5 h-5 text-slate-400" />
+                                        Cancelar
                                     </button>
-                                ))}
+                                    <button
+                                        onClick={handleCreateCategory}
+                                        disabled={!newCategoryName.trim()}
+                                        className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all uppercase tracking-widest disabled:opacity-50"
+                                    >
+                                        Criar Categoria
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
                 )}
 
-                {/* Toast Notification */}
+                {/* Edit Category Modal */}
+                {editingCategory && (
+                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-6 animate-in fade-in duration-300">
+                        <div className="bg-white rounded-[3rem] shadow-2xl max-w-lg w-full p-10 overflow-hidden relative">
+                            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 to-purple-600" />
+                            <div className="flex items-center justify-between mb-8">
+                                <h2 className="text-2xl font-black text-gray-900 tracking-tight">Editar Categoria</h2>
+                                <button
+                                    onClick={() => {
+                                        setEditingCategory(null);
+                                        setEditCategoryName("");
+                                    }}
+                                    className="p-3 hover:bg-slate-100 rounded-2xl transition-all"
+                                >
+                                    <X className="w-6 h-6 text-slate-400" />
+                                </button>
+                            </div>
+
+                            <div className="space-y-6">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Nome da Categoria</label>
+                                    <input
+                                        autoFocus
+                                        type="text"
+                                        value={editCategoryName}
+                                        onChange={(e) => setEditCategoryName(e.target.value)}
+                                        placeholder="Nome da categoria"
+                                        className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold focus:border-indigo-500 outline-none transition-all"
+                                        onKeyDown={(e) => e.key === "Enter" && handleUpdateCategory()}
+                                    />
+                                </div>
+
+                                <div className="flex gap-3 pt-4">
+                                    <button
+                                        onClick={() => {
+                                            setEditingCategory(null);
+                                            setEditCategoryName("");
+                                        }}
+                                        className="flex-1 py-4 text-slate-400 font-black text-sm hover:bg-slate-50 rounded-2xl transition-all uppercase tracking-widest"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={handleUpdateCategory}
+                                        disabled={!editCategoryName.trim()}
+                                        className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all uppercase tracking-widest disabled:opacity-50"
+                                    >
+                                        Salvar Alteração
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Toast System */}
                 {toast && (
-                    <div className="fixed top-8 right-8 z-50 animate-in slide-in-from-top-4 fade-in duration-200">
-                        <div className={`px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 ${toast.type === 'success'
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-rose-600 text-white'
+                    <div className="fixed bottom-10 left-10 z-[100] animate-in slide-in-from-left-8 duration-500">
+                        <div className={`px-8 py-5 rounded-[2rem] shadow-2xl flex items-center gap-3 ${toast.type === 'success' ? 'bg-indigo-600 text-white' : 'bg-rose-600 text-white'
                             }`}>
-                            {toast.type === 'success' ? (
-                                <CheckCircle2 className="w-5 h-5" />
-                            ) : (
-                                <AlertCircle className="w-5 h-5" />
-                            )}
-                            <p className="font-bold text-sm">{toast.message}</p>
+                            {toast.type === 'success' ? <CheckCircle2 className="w-6 h-6" /> : <AlertCircle className="w-6 h-6" />}
+                            <span className="font-black text-sm uppercase tracking-tight">{toast.message}</span>
                         </div>
                     </div>
                 )}
             </div>
         </DashboardLayout>
-    );
-}
-
-// Tree Node Component
-function TreeNode({
-    node,
-    expanded,
-    toggleExpand,
-    onDelete,
-    loadData,
-    officialCategories,
-    onQuickMove,
-    selectedIds,
-    toggleSelect,
-    toggleSelectAll,
-    editingId,
-    setEditingId,
-    editingName,
-    setEditingName,
-    onUpdateName
-}: any) {
-    const isExpanded = expanded.has(node.id);
-    const hasChildren = node.children.length > 0;
-    const hasTransactions = node.transactions.length > 0;
-    const [isAddingSub, setIsAddingSub] = useState(false);
-    const [newSubName, setNewSubName] = useState("");
-
-    const allTransactionIds = node.transactions.map((t: Transaction) => t.id!);
-    const allSelected = allTransactionIds.length > 0 && allTransactionIds.every(id => selectedIds.has(id));
-    const someSelected = allTransactionIds.some(id => selectedIds.has(id)) && !allSelected;
-
-    const handleCreateSub = async () => {
-        if (!newSubName.trim()) return;
-        try {
-            const response = await fetch("/api/categories", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    name: newSubName,
-                    type: node.type,
-                    parent_id: node.id,
-                    icon: "🔹"
-                })
-            });
-            if (response.ok) {
-                setNewSubName("");
-                setIsAddingSub(false);
-                loadData();
-            }
-        } catch (e) {
-            console.error("Error creating subcategory:", e);
-        }
-    };
-
-    return (
-        <div className="select-none">
-            {/* Category Header */}
-            <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-all group ${node.parent_id
-                ? 'ml-12 bg-slate-50 border-slate-200 hover:border-slate-300'
-                : 'bg-white border-slate-200 hover:border-indigo-200 hover:shadow-sm'
-                }`}>
-                {/* Expand/Collapse Button */}
-                <button
-                    onClick={() => (hasChildren || hasTransactions) && toggleExpand(node.id)}
-                    disabled={!hasChildren && !hasTransactions}
-                    className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${hasChildren || hasTransactions
-                        ? 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-                        : 'bg-slate-50 text-slate-300 cursor-default'
-                        }`}
-                >
-                    {isExpanded ? (
-                        <ChevronDown className="w-4 h-4" />
-                    ) : (
-                        <ChevronRight className="w-4 h-4" />
-                    )}
-                </button>
-
-                {/* Icon */}
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${node.type === 'receita'
-                    ? 'bg-emerald-50 text-emerald-600'
-                    : 'bg-rose-50 text-rose-600'
-                    }`}>
-                    {node.icon || (node.parent_id ? '🔹' : '📁')}
-                </div>
-
-                {/* Name & Info */}
-                <div className="flex-1 min-w-0">
-                    {editingId === node.id ? (
-                        <div className="flex items-center gap-2">
-                            <input
-                                autoFocus
-                                className="flex-1 px-3 py-1.5 bg-white border-2 border-indigo-500 rounded-lg text-sm font-bold outline-none"
-                                value={editingName}
-                                onChange={(e) => setEditingName(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') onUpdateName(node.id);
-                                    if (e.key === 'Escape') setEditingId(null);
-                                }}
-                            />
-                            <button
-                                onClick={() => onUpdateName(node.id)}
-                                className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                            >
-                                <Save className="w-4 h-4" />
-                            </button>
-                            <button
-                                onClick={() => setEditingId(null)}
-                                className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-                    ) : (
-                        <div>
-                            <p className="font-bold text-slate-900 text-sm">{node.name}</p>
-                            <div className="flex items-center gap-3 mt-1">
-                                <span className={`text-[10px] font-bold uppercase tracking-wider ${node.type === 'receita' ? 'text-emerald-600' : 'text-rose-600'
-                                    }`}>
-                                    {node.type}
-                                </span>
-                                {hasTransactions && (
-                                    <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
-                                        {node.transactions.length} lançamentos
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Total */}
-                {hasTransactions && (
-                    <div className="text-right mr-4">
-                        <p className={`text-sm font-bold ${node.type === 'receita' ? 'text-emerald-600' : 'text-rose-600'
-                            }`}>
-                            {new Intl.NumberFormat('pt-BR', {
-                                style: 'currency',
-                                currency: 'BRL'
-                            }).format(node.transactions.reduce((s: number, t: Transaction) => s + t.amount, 0))}
-                        </p>
-                        <p className="text-[10px] font-medium text-slate-400">Total</p>
-                    </div>
-                )}
-
-                {/* Actions */}
-                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {node.isOfficial && (
-                        <>
-                            <button
-                                onClick={() => {
-                                    setEditingId(node.id);
-                                    setEditingName(node.name);
-                                }}
-                                className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                title="Editar nome"
-                            >
-                                <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                                onClick={() => setIsAddingSub(!isAddingSub)}
-                                className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                title="Adicionar subcategoria"
-                            >
-                                <Plus className="w-4 h-4" />
-                            </button>
-                            <button
-                                onClick={() => onDelete(node.id)}
-                                className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                                title="Excluir categoria"
-                            >
-                                <Trash2 className="w-4 h-4" />
-                            </button>
-                        </>
-                    )}
-                </div>
-            </div>
-
-            {/* Add Subcategory Form */}
-            {isAddingSub && (
-                <div className="ml-12 mt-2 mb-3 p-4 bg-indigo-50 border-2 border-dashed border-indigo-200 rounded-2xl animate-in slide-in-from-top-2 duration-200">
-                    <div className="flex items-center gap-3">
-                        <ArrowDownWideNarrow className="w-5 h-5 text-indigo-600" />
-                        <input
-                            autoFocus
-                            placeholder={`Nova subcategoria de ${node.name}...`}
-                            className="flex-1 px-3 py-2 bg-white border border-indigo-200 rounded-lg text-sm font-medium outline-none focus:border-indigo-400"
-                            value={newSubName}
-                            onChange={(e) => setNewSubName(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleCreateSub();
-                                if (e.key === 'Escape') setIsAddingSub(false);
-                            }}
-                        />
-                        <button
-                            onClick={handleCreateSub}
-                            className="p-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                        >
-                            <Save className="w-4 h-4" />
-                        </button>
-                        <button
-                            onClick={() => setIsAddingSub(false)}
-                            className="p-2.5 text-slate-400 hover:bg-white rounded-lg transition-colors"
-                        >
-                            <X className="w-4 h-4" />
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* Expanded Content */}
-            {isExpanded && (
-                <div className="mt-3 space-y-2 ml-6">
-                    {/* Children Categories */}
-                    {node.children.map((child: any) => (
-                        <TreeNode
-                            key={child.id}
-                            node={child}
-                            expanded={expanded}
-                            toggleExpand={toggleExpand}
-                            onDelete={onDelete}
-                            loadData={loadData}
-                            officialCategories={officialCategories}
-                            onQuickMove={onQuickMove}
-                            selectedIds={selectedIds}
-                            toggleSelect={toggleSelect}
-                            toggleSelectAll={toggleSelectAll}
-                            editingId={editingId}
-                            setEditingId={setEditingId}
-                            editingName={editingName}
-                            setEditingName={setEditingName}
-                            onUpdateName={onUpdateName}
-                        />
-                    ))}
-
-                    {/* Transactions List */}
-                    {hasTransactions && (
-                        <div className="ml-6 bg-slate-50/50 rounded-2xl border border-slate-200 overflow-hidden">
-                            {/* Transactions Header */}
-                            <div className="p-4 bg-white/60 border-b border-slate-200 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <button
-                                        onClick={() => toggleSelectAll(node.transactions)}
-                                        className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${allSelected
-                                            ? 'bg-indigo-600 text-white'
-                                            : someSelected
-                                                ? 'bg-indigo-100 text-indigo-600'
-                                                : 'bg-white border-2 border-slate-200 text-slate-300 hover:border-indigo-200'
-                                            }`}
-                                    >
-                                        {allSelected ? (
-                                            <CheckSquare className="w-4 h-4" />
-                                        ) : someSelected ? (
-                                            <Square className="w-4 h-4 fill-current" />
-                                        ) : (
-                                            <Square className="w-4 h-4" />
-                                        )}
-                                    </button>
-                                    <History className="w-4 h-4 text-slate-400" />
-                                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">
-                                        {node.transactions.length} Lançamentos
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* Transactions */}
-                            <div className="max-h-80 overflow-y-auto custom-scrollbar">
-                                {node.transactions.map((t: Transaction) => {
-                                    const isSelected = selectedIds.has(t.id!);
-                                    return (
-                                        <div
-                                            key={t.id}
-                                            className={`flex items-center gap-4 p-4 border-b border-slate-100 last:border-0 transition-all ${isSelected ? 'bg-indigo-50/80' : 'hover:bg-white/60'
-                                                }`}
-                                        >
-                                            <button
-                                                onClick={() => toggleSelect(t.id!)}
-                                                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all ${isSelected
-                                                    ? 'bg-indigo-600 text-white'
-                                                    : 'bg-white border-2 border-slate-200 text-slate-300 hover:border-indigo-300'
-                                                    }`}
-                                            >
-                                                {isSelected ? (
-                                                    <CheckSquare className="w-4 h-4" />
-                                                ) : (
-                                                    <Square className="w-4 h-4" />
-                                                )}
-                                            </button>
-
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-bold text-slate-900 truncate">
-                                                    {t.description}
-                                                </p>
-                                                <div className="flex items-center gap-3 mt-1">
-                                                    <span className="text-xs text-slate-500 flex items-center gap-1.5">
-                                                        <Calendar className="w-3 h-3" />
-                                                        {new Date(t.date).toLocaleDateString('pt-BR')}
-                                                    </span>
-                                                    {t.account_name && (
-                                                        <>
-                                                            <span className="w-1 h-1 rounded-full bg-slate-300" />
-                                                            <span className="text-xs text-slate-500 font-medium">
-                                                                {t.account_name}
-                                                            </span>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            <span className={`text-sm font-bold ${t.type === 'receita' ? 'text-emerald-600' : 'text-rose-600'
-                                                }`}>
-                                                {new Intl.NumberFormat('pt-BR', {
-                                                    style: 'currency',
-                                                    currency: 'BRL'
-                                                }).format(t.amount)}
-                                            </span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-        </div>
-    );
-}
-
-// Phantom Category Card Component
-function PhantomCategoryCard({ phantom, onApprove, onQuickMove, officialCategories }: any) {
-    const [expanded, setExpanded] = useState(false);
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
-    const toggleSelect = (id: string) => {
-        const next = new Set(selectedIds);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-        setSelectedIds(next);
-    };
-
-    const allSelected = phantom.transactions.every((t: Transaction) => selectedIds.has(t.id!));
-
-    return (
-        <div className="border-2 border-amber-200 rounded-2xl overflow-hidden bg-amber-50/30">
-            {/* Header */}
-            <div className="p-5 bg-white/60 flex items-center gap-4">
-                <button
-                    onClick={() => setExpanded(!expanded)}
-                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-amber-100 hover:bg-amber-200 transition-colors"
-                >
-                    {expanded ? (
-                        <ChevronUp className="w-5 h-5 text-amber-700" />
-                    ) : (
-                        <ChevronDown className="w-5 h-5 text-amber-700" />
-                    )}
-                </button>
-
-                <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-xl">
-                    {phantom.icon}
-                </div>
-
-                <div className="flex-1">
-                    <div className="flex items-center gap-3">
-                        <h3 className="font-bold text-slate-900">{phantom.name}</h3>
-                        <span className="text-[10px] font-black bg-amber-600 text-white px-2 py-1 rounded-md">
-                            PENDENTE
-                        </span>
-                    </div>
-                    <p className="text-sm text-slate-600 mt-1">
-                        {phantom.count} lançamentos • {new Intl.NumberFormat('pt-BR', {
-                            style: 'currency',
-                            currency: 'BRL'
-                        }).format(phantom.total)}
-                    </p>
-                </div>
-
-                <button
-                    onClick={onApprove}
-                    className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl transition-all flex items-center gap-2"
-                >
-                    <CheckCircle2 className="w-4 h-4" />
-                    Aprovar
-                </button>
-            </div>
-
-            {/* Expanded Transactions */}
-            {expanded && (
-                <div className="border-t-2 border-amber-200">
-                    <div className="p-4 bg-white/40">
-                        <div className="flex items-center justify-between mb-4">
-                            <span className="text-xs font-bold text-amber-900 uppercase tracking-wide">
-                                Lançamentos nesta categoria
-                            </span>
-                            {selectedIds.size > 0 && (
-                                <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
-                                    {selectedIds.size} selecionados
-                                </span>
-                            )}
-                        </div>
-
-                        <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
-                            {phantom.transactions.map((t: Transaction) => {
-                                const isSelected = selectedIds.has(t.id!);
-                                return (
-                                    <div
-                                        key={t.id}
-                                        className={`flex items-center gap-3 p-3 rounded-xl transition-all ${isSelected ? 'bg-indigo-50 border-2 border-indigo-200' : 'bg-white border-2 border-slate-100'
-                                            }`}
-                                    >
-                                        <button
-                                            onClick={() => toggleSelect(t.id!)}
-                                            className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all ${isSelected
-                                                ? 'bg-indigo-600 text-white'
-                                                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
-                                                }`}
-                                        >
-                                            {isSelected ? (
-                                                <CheckSquare className="w-4 h-4" />
-                                            ) : (
-                                                <Square className="w-4 h-4" />
-                                            )}
-                                        </button>
-
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-bold text-slate-900 truncate">
-                                                {t.description}
-                                            </p>
-                                            <p className="text-xs text-slate-500 mt-0.5">
-                                                {new Date(t.date).toLocaleDateString('pt-BR')}
-                                            </p>
-                                        </div>
-
-                                        <span className={`text-sm font-bold ${t.type === 'receita' ? 'text-emerald-600' : 'text-rose-600'
-                                            }`}>
-                                            {new Intl.NumberFormat('pt-BR', {
-                                                style: 'currency',
-                                                currency: 'BRL'
-                                            }).format(t.amount)}
-                                        </span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        {selectedIds.size > 0 && (
-                            <div className="mt-4 p-4 bg-indigo-50 rounded-xl border-2 border-indigo-200">
-                                <p className="text-xs font-bold text-indigo-900 mb-3">
-                                    Mover {selectedIds.size} lançamento(s) para:
-                                </p>
-                                <div className="flex flex-wrap gap-2">
-                                    {officialCategories.slice(0, 6).map((cat: Category) => (
-                                        <button
-                                            key={cat.id}
-                                            onClick={() => {
-                                                onQuickMove(Array.from(selectedIds), cat);
-                                                setSelectedIds(new Set());
-                                            }}
-                                            className="px-4 py-2 bg-white hover:bg-indigo-600 hover:text-white border-2 border-slate-200 hover:border-indigo-600 rounded-xl text-xs font-bold transition-all"
-                                        >
-                                            {cat.icon} {cat.name}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-        </div>
     );
 }

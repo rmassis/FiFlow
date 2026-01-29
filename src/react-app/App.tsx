@@ -6,6 +6,8 @@ import { Insights } from "@/react-app/pages/Insights";
 import { Transactions } from "@/react-app/pages/Transactions";
 import Categories from "@/react-app/pages/Categories";
 import Agent from "@/react-app/pages/Agent";
+import Login from "@/react-app/pages/Login";
+import Register from "@/react-app/pages/Register";
 import Profile from "@/react-app/pages/Profile";
 
 import { useEffect } from "react";
@@ -28,6 +30,8 @@ export default function App() {
         <Route path="/goals" element={<Goals />} />
         <Route path="/insights" element={<Insights />} />
         <Route path="/agent" element={<Agent />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         <Route path="/profile" element={<Profile />} />
       </Routes>
     </Router>

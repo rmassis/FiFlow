@@ -1,0 +1,4 @@
+﻿--- Checking Columns via fake insert ---
+Error with fake column: Could not find the 'non_existent_column' column of 'categories' in the schema cache
+--- Checking if is_pending exists ---
+Error with is_pending: new row violates row-level security policy for table "categories"

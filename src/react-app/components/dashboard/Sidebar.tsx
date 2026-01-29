@@ -9,6 +9,7 @@ import {
   UserCircle
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useFinanceStore } from "@/react-app/contexts/FinanceContext";
 
 const navigation = [
   { name: "Dashboard", icon: LayoutDashboard, href: "/" },
@@ -70,13 +71,21 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="p-4 border-t border-gray-200/50">
+      <div className="p-4 border-t border-gray-200/50 space-y-2">
         <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-4">
           <p className="text-sm font-medium text-gray-900">Need help?</p>
           <p className="text-xs text-gray-600 mt-1">
             Ask our AI assistant anything about your finances
           </p>
         </div>
+
+        <button
+          onClick={() => useFinanceStore.getState().logout()}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-rose-600 hover:bg-rose-50"
+        >
+          <LogIn className="w-5 h-5 rotate-180" />
+          <span className="font-medium">Sair</span>
+        </button>
       </div>
     </div>
   );

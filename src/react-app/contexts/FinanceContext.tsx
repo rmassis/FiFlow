@@ -134,6 +134,11 @@ interface FinanceStore {
     updatePersonalInfo: (info: Partial<PersonalInfo>) => Promise<void>;
     updateContactInfo: (info: Partial<ContactInfo>) => Promise<void>;
     updateAddress: (address: Partial<Address>) => Promise<void>;
+    ensureUser: (email: string) => Promise<string | null>;
+    createGuestUser: () => Promise<string | null>;
+    login: (email: string, password: string) => Promise<{ error: any }>;
+    register: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
+    logout: () => Promise<void>;
 
     // Accounts
     bankAccounts: BankAccount[];
@@ -449,6 +454,43 @@ export const useFinanceStore = create<FinanceStore>()(
                 } catch (err) {
                     console.error("DB Delete Error", err);
                 }
+            },
+
+            logout: async () => {
+                await supabase.auth.signOut();
+                set({ user: null, bankAccounts: [], creditCards: [], transactions: [], goals: [], insights: [] });
+                window.location.href = '/login';
+            },
+
+            login: async (email, password) => {
+                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+                if (!error && data.user) {
+                    await get().fetchInitialData();
+                }
+                return { error };
+            },
+
+            register: async (email, password, fullName) => {
+                const { data, error } = await supabase.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                        data: { full_name: fullName }
+                    }
+                });
+
+                if (!error && data.user) {
+                    // Create profile
+                    const { error: profileError } = await supabase.from('profiles').upsert({
+                        id: data.user.id,
+                        full_name: fullName,
+                        updated_at: new Date()
+                    });
+
+                    if (profileError) console.error("Error creating profile:", profileError);
+                    await get().fetchInitialData();
+                }
+                return { error };
             },
         }),
         {
